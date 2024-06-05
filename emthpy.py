@@ -2,6 +2,7 @@ import _emthpy_equations as eq
 import _emthpy_vectors as vec
 import _emthpy_matrices as mat
 import _emthpy_utils as utils
+from _emthpy_command_line import run_command_line
 
 """Contains data structures for Engineering Mathematics"""
 

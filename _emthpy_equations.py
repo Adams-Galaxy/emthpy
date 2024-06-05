@@ -1,6 +1,5 @@
 import math
 from enum import Enum
-import inspect
 import numpy as np
 import _emthpy_exceptions as ex
 
@@ -18,6 +17,9 @@ def is_basic_operator(c: str) -> bool:
 def isvarchar(c: str) -> bool:
     """Check if a character is a valid variable character."""
     return c in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def find_all(s, substring):
+    return [i for i, char in enumerate(s) if s[i:i+len(substring)] == substring]
 
 
 class Operator(Enum):
@@ -41,6 +43,7 @@ class Operator(Enum):
     Add = '+'
     Subtract = '-'
     Negative = '--'
+    Dot = '.'
 
     def placeholder(self):
         """Get the placeholder string for the operator."""
@@ -48,7 +51,7 @@ class Operator(Enum):
     
     def ismodifier(self):
         """Check if the operator is a modifier (takes one argument)."""
-        return len(inspect.signature(OPERATIONS[self]).parameters) == 1
+        return len(OPERATOR_SIGNATURES[self]) == 1
 
     def preform(self, *args):
         """Perform the operation with the given arguments."""
@@ -60,14 +63,15 @@ class Operator(Enum):
 
     def __str__(self):
         """Return the string representation of the operator."""
-        return self.value
+        key = OPERATOR_KEYS[self]
+        return key[0] if isinstance(key, list) else key
 
 # Define a dictionary of mathematical constants
 CONSTANTS = {'e': math.e, 'pi': math.pi}
 
 # Define the order of operations (BEDMAS)
 BEDMAS = (
-    (Operator.Negative,),
+    (Operator.Negative, Operator.Dot),
     (Operator.Sin, Operator.Cos, Operator.Tan, Operator.ASin, Operator.ACos, Operator.ATan,
      Operator.Sec, Operator.Cosec, Operator.Cot, Operator.LogX, Operator.Log, Operator.Ln),
     (Operator.Power, Operator.Root),
@@ -77,25 +81,26 @@ BEDMAS = (
 
 # Define a dictionary of operator functions
 OPERATIONS = {
-    Operator.Sin: math.sin,
-    Operator.Cos: math.cos,
-    Operator.Tan: math.tan,
-    Operator.ASin: math.asin,
-    Operator.ACos: math.acos,
-    Operator.ATan: math.atan,
-    Operator.Sec: lambda x: 1/math.cos(x),
-    Operator.Cosec: lambda x: 1/math.sin(x),
-    Operator.Cot: lambda x: 1/math.tan(x),
-    Operator.LogX: lambda x, y: math.log(x, y),
-    Operator.Log: math.log10,
-    Operator.Ln: lambda x: math.log(x, math.e),
-    Operator.Power: pow,
-    Operator.Root: math.sqrt,
+    Operator.Sin: np.sin,
+    Operator.Cos: np.cos,
+    Operator.Tan: np.tan,
+    Operator.ASin: np.arcsin,
+    Operator.ACos: np.arccos,
+    Operator.ATan: np.arctan,
+    Operator.Sec: lambda x: 1/np.cos(x),
+    Operator.Cosec: lambda x: 1/np.sin(x),
+    Operator.Cot: lambda x: 1/np.tan(x),
+    Operator.LogX: lambda x, y: np.log10,
+    Operator.Log: np.log10,
+    Operator.Ln: lambda x: np.log(x),
+    Operator.Power: np.power,
+    Operator.Root: np.sqrt,
     Operator.Divide: lambda x, y: x / y,
     Operator.Multiply: lambda x, y: x * y,
     Operator.Add: lambda x, y: x + y,
     Operator.Subtract: lambda x, y: x - y,
-    Operator.Negative: lambda x: -x
+    Operator.Negative: lambda x: -x,
+    Operator.Dot: np.dot
 }
 
 # Define a dictionary of operator keys
@@ -111,13 +116,42 @@ OPERATOR_KEYS = {
     Operator.Tan: 'tan',
     Operator.Ln: ['ln', 'log'],
     Operator.Log: 'log10',
-    Operator.Power: ['**', '^'],
+    Operator.Power: ['^', '**'],
     Operator.Root: 'sqrt',
     Operator.Add: '+',
     Operator.Subtract: '-',
     Operator.Multiply: '*',
-    Operator.Divide: '/'
+    Operator.Divide: '/',
+    Operator.Dot: '.',
+    Operator.Negative: '-'
 }
+
+OPERATOR_REQUIREMENTS = {
+    Operator.Dot: lambda a, b: not isnumeric(a) and not isnumeric(b),
+}
+
+OPERATOR_SIGNATURES = {
+    Operator.ASin: (1,),
+    Operator.ACos: (1,),
+    Operator.ATan: (1,),
+    Operator.Sec: (1,),
+    Operator.Cosec: (1,),
+    Operator.Cot: (1,),
+    Operator.Sin: (1,),
+    Operator.Cos: (1,),
+    Operator.Tan: (1,),
+    Operator.Ln: (1,),
+    Operator.Log: (1,),
+    Operator.Power: (-1, 1),
+    Operator.Root: (1,),
+    Operator.Add: (-1, 1),
+    Operator.Subtract: (-1, 1),
+    Operator.Multiply: (-1, 1),
+    Operator.Divide: (-1, 1),
+    Operator.Dot: (-1, 1),
+    Operator.Negative: (1,)
+}
+
 
 class VariableSet(dict):
     """Dictionary subclass for storing variables."""
@@ -134,7 +168,35 @@ class VariableSet(dict):
             
         return super().__getitem__(key)
 
+    def update_vars(self, *args, raise_if_mismatched=False, **kwargs):
+        """Update the variable values."""
+        # Assign values to variables if provided as arguments
+        if len(args) > 0:
+            if len(args) != len(self) and raise_if_mismatched:
+                raise ex.InvalidArgumentError("Invalid number of arguments (" +
+                                              f"{len(args)}) for {len(self)} variables")
+            for i, var in enumerate(self.keys()):
+                if i >= len(args):
+                    break
+                if isinstance(args[i], str):
+                    self[var] = Equation(args[i])
+                else:   self[var] = args[i]
 
+        # Assign values to variables if provided as keyword arguments
+        for key, value in kwargs.items():
+            if isinstance(value, str):
+                self[key] = Equation(value)
+            else:   self[key] = value
+
+    def defined(self, var):
+        if var not in self:
+            return False
+        return super().__getitem__(var) is not None
+
+    def copy(self):
+        """Return a copy of the VariableSet object."""
+        return VariableSet(self, prompt_on_undefinged=self.prompt_on_undefinged)
+        
 class Equation:
     """Class representing a mathematical equation."""
     def __init__(self, equation=..., *args, variable_set=..., existing=..., require_format=True, **kwargs):
@@ -173,7 +235,6 @@ class Equation:
         self.equation = Equation.format(self.unformated)
 
         self.update_variables(*args, **kwargs)
-
     def init_from_existing(self, equation, *args, **kwargs):
         """Initialize the Equation object from an existing Equation object."""
         self.equation = equation.equation[:]
@@ -182,65 +243,94 @@ class Equation:
         self.update_variables(*args, **kwargs)
 
     @classmethod
-    def from_numeric(cls, value, *args, **kwargs):
-        """Create an Equation object from a numeric value."""
-        return cls(existing=[value], *args, **kwargs)
-
-    def decomposed(self):
-        """Decompose the equation into its components."""
-
-        result = []
-        for item in self.equation:
-            if isinstance(item, list):
-                result.extend(item)
-            else:
-                result.append(item)
-        return result
-
-    def requires_format(self):
-        """Check if the equation requires formatting."""
-        return True in [isinstance(item, list) for item in self.equation]
-
-    @classmethod
     def from_existing(cls, equation, *args, **kwargs):
         """Create an Equation object from an existing Equation object."""
         return cls(existing=equation, *args, **kwargs)
-
+    @classmethod
+    def from_numeric(cls, value, *args, **kwargs):
+        """Create an Equation object from a numeric value."""
+        return cls(existing=[value], *args, **kwargs)
+    def decomposed(self):
+        """Decompose the equation into its components."""
+        def decompose(equation):
+            result = []
+            for item in equation:
+                if isinstance(item, list):
+                    result.extend(decompose(item))
+                else:
+                    result.append(item)
+            return result
+        result = decompose(self.equation)
+        return result
+    def function_variables(self):
+        """Get the variables in the equation."""
+        vars = []
+        for item in self.decomposed():
+            if isinstance(item, str) and item not in vars:
+                vars.append(item)
+        return tuple(vars)
+    def remove_lone_parentheses(self):
+        """Remove lone parentheses from the equation."""
+        def remove_parentheses(equation):
+            if len(equation) == 1:
+                return equation[0]
+            for i, item in enumerate(equation):
+                if isinstance(item, list):
+                    equation[i] = remove_parentheses(item)
+            return equation
+        self.equation = remove_parentheses(self.equation)
+    def requires_format(self):
+        """Check if the equation requires formatting."""
+        return True in [isinstance(item, list) for item in self.equation]
     def update_variables(self, *args, **kwargs):
         """Update the variable values."""
-        # Assign values to variables if provided as arguments
-        if len(args) > 0:
-            if len(args) != len(self.variable_set):
-                print(args)
-                raise ex.InvalidArgumentError("Invalid number of arguments (" +
-                                           f"{len(args)}) for {len(self.variable_set)} variables")
-            for i, var in enumerate(self.variable_set.keys()):
-                self.variable_set[var] = args[i]
-
-        # Assign values to variables if provided as keyword arguments
-        for key, value in kwargs.items():
-            self.variable_set[key] = value
-
+        self.variable_set.update_vars(*args, **kwargs)
     def evaluate(self, *args, **kwargs):
         """Solve the equation with the given variable values."""
         # Update the variables if arguments are provided
-        self.update_variables(*args, **kwargs)
-        return Equation.solve_equation(self.equation, self.variable_set)
-         
+        var_set = self.variable_set.copy()
+        var_set.update_vars(*args, **kwargs)
+        return Equation.solve_equation(self.equation, var_set)
+    def evaluate_from(self, a, b):
+        """Solve the equation with the given variable values."""
+        if isinstance(a, tuple) and isinstance(b, tuple):
+            return self.evaluate(*b[0], **b[1]) - self.evaluate(*a[0], **a[1])
+        return self.evaluate(b) - self.evaluate(a)
     def refactor_str_operators(self, equation: str) -> str:
         """Replace functions in the equation string with single char identifiers."""
+        def replace_operator(operator, replacement, equation):
+            prev_index = 0
+            index = equation.find(replacement, prev_index)
+            while index != -1:
+                if operator in OPERATOR_REQUIREMENTS:
+                    a = equation[index - 1] if index > 0 else ''
+                    b = equation[index + 1] if index < len(equation) - 1 else ''
+                    if not OPERATOR_REQUIREMENTS[operator](a, b):
+                        prev_index = index + 1
+                        index = equation.find(replacement, prev_index)
+                        continue
+                
+                equation = equation[:index] + \
+                    operator.placeholder() + \
+                    equation[index + len(replacement):]
+                prev_index = index + len(replacement) + 2
+                index = equation.find(replacement, prev_index)
+            return equation
+        
         # Replace functions (e.g sin) with single char identifiers
-        for key, value in OPERATOR_KEYS.items():
-            if isinstance(value, list):
-                for s in value:
-                    equation = equation.replace(s, key.placeholder())
+        for operator, identifier in OPERATOR_KEYS.items():
+            if operator is Operator.Negative:
                 continue
-            equation = equation.replace(value, key.placeholder())
+            if isinstance(identifier, list):
+                for value in identifier:
+                    equation = replace_operator(operator, value, equation)
+            else:
+                equation = replace_operator(operator, identifier, equation)
+
 
         for key, value in CONSTANTS.items():
             equation = equation.replace(key, f"!{key}!")
         return equation
-
     def interperate(self, equation: str) -> list:
         """
         Interprets the equation string and converts it into a list of tokens.
@@ -322,7 +412,64 @@ class Equation:
             else:
                 raise ex.UnkownOperatorError(f"Unkown operator: \'{c}\'")
         return result
-    
+    def trap_intergral(self, a, b, n=-1, accuracy_factor=10):
+        """Trapazoidal intergral approximation."""
+        if n == -1:
+            n = math.ceil((b - a) * accuracy_factor)
+
+        h = (b - a) / n
+        result = (self(a) + self(b))/2 + sum([self(a + i*h) for i in range(1, n)])
+        return result * h
+    def simps_intergral(self, a, b, n=-1, accuracy_factor=10):
+        """Simpson's rule intergral approximation."""
+        if n == -1:
+            n = math.ceil((b - a) * accuracy_factor)
+        if n % 2 != 0:
+            n += 1
+
+        h = (b - a) / n
+        result = self(a) + self(b) + 4 * sum([self(a + i*h) for i in range(1, n, 2)]) + \
+            2 * sum([self(a + i*h) for i in range(2, n, 2)])
+        return result * h / 3
+
+    def sort_vars_by_occurance(self):
+        vars = []
+        for item in self.decomposed():
+            if isinstance(item, str) and item not in vars:
+                vars.append(item)
+                
+        result = {key: self.variable_set[key] for key in vars}
+        result.update(self.variable_set)
+        self.variable_set.clear()
+        self.variable_set.update(result)
+    def contains_all(self, vars):
+        if isinstance(vars, str):
+            return vars in self.function_variables()
+        if len(vars) == 0:
+            return False
+        included_vars = self.function_variables()
+        for var in vars.keys():
+            if var not in included_vars:
+                return False
+        return True
+    def contains_any(self, vars):
+        if isinstance(vars, str):
+            return vars in self.function_variables()
+        if len(vars) == 0:
+            return False
+        included_vars = self.function_variables()
+        for var in vars.keys():
+            if var in included_vars:
+                return True
+        return False
+    def vars_satisfied(self, *args, **kwargs):
+        temp_var_set = self.variable_set.copy()
+        temp_var_set.update_vars(*args, **kwargs)
+        for var in temp_var_set.keys():
+            if not temp_var_set.defined(var):
+                return False
+        return True
+
     @staticmethod
     def find_var_in_str(str):
         """Find a variable in a string."""
@@ -335,8 +482,7 @@ class Equation:
                 result += c
             else:
                 return result
-        return result
-    
+        return result    
     @staticmethod
     def format(equation: list) -> list:
         """Format the equation list."""
@@ -365,7 +511,6 @@ class Equation:
         while len(result) == 1 and isinstance(result[0], list):
             result = result[0]
         return result
-
     @staticmethod
     def previous_opperation(eqation: list, index):
         """Find the previous operation in the equation list."""
@@ -376,7 +521,6 @@ class Equation:
             elif isinstance(sub[i], list):
                 return Equation.previous_opperation(sub[i], len(sub[i]) - 1)
         return None
-
     @staticmethod
     def cut_next_item(equation: list, index):
         """Cut the next item from the equation list."""
@@ -390,8 +534,7 @@ class Equation:
             equation[index + i + 1] = None
             return [Operator.Negative, Equation.cut_next_item(equation, index + i + 1)]
 
-        print("Failed to find next item")
-    
+        print("Failed to find next item")    
     @staticmethod
     def cut_prev_item(equation: list, index):
         """Cut the previous item from the equation list."""
@@ -402,7 +545,6 @@ class Equation:
                 equation[i] = None
                 return sub[i]
         print("Failed to find previous item")
-
     @staticmethod
     def append_next_list(equation: list, index, obj):
         """Append an item to the next list in the equation list."""
@@ -414,8 +556,7 @@ class Equation:
                 else:
                     equation[index + i + 1].append(obj)
                 return            
-        print("Failed to append next item")
-    
+        print("Failed to append next item")    
     @staticmethod
     def append_prev_list(equation: list, index, obj):
         """Append an item to the previous list in the equation list."""
@@ -429,7 +570,6 @@ class Equation:
                     equation[i].append(obj)
                 return
         print("Failed to append previous item")
-
     @staticmethod
     def find_end_bracket(equation: str, index):
         """Find the index of the closing bracket in the equation string."""
@@ -444,13 +584,12 @@ class Equation:
                     continue
                 return index + i
         print("Failed to find end bracket")
-
     @staticmethod
-    def solve_equation(equation: list, variable_set):
+    def solve_equation(equation: list, variable_set, evaluate_internal=False):
         """Solve the equation using the given variable set."""
         pending_operator = None
         
-        result = 0.0
+        result = 0
         for item in equation:
             if isinstance(item, list):
                 value = Equation.solve_equation(item, variable_set)
@@ -459,11 +598,17 @@ class Equation:
                     value = CONSTANTS[item]
                 else:
                     value = variable_set[item]
+                    if isinstance(value, Equation) and evaluate_internal:
+                        value = value.evaluate(**variable_set)
+                if value is None:
+                        raise ex.UndefingedVariableError(f"Variable '{item}' is not defined")
             elif isinstance(item, (float, int)):
                 value = item
             elif isinstance(item, Operator):
                 pending_operator = item
                 continue
+            else:
+                raise ex.InvalidEquationError(f"Invalid equation item: {item}")
             
             if pending_operator != None:
                 if pending_operator.ismodifier():
@@ -473,13 +618,13 @@ class Equation:
                 pending_operator = None
             else:
                 result = value
+        if isinstance(result, Equation):
+            result.remove_lone_parentheses()
         return result
-    
     @staticmethod
     def is_default_multiplier(obj):
         """Check if the object is a default multiplier."""
         return isinstance(obj, (float, int, str, list))
-
     @staticmethod
     def eq_list_to_str(equation: list) -> str:
         """Convert an equation list to a string."""
@@ -496,81 +641,88 @@ class Equation:
 
     def __call__(self, *args, **kwargs):
         """Call the Equation object as a function."""
-        return self.evaluate(*args, **kwargs)
-    
+        return self.evaluate(*args, **kwargs)    
     def __add__(self, other):
         """Add two equations."""
         new = Equation(existing=self)
-        new.equation = [new.equation, Operator.Add, other.equation if isinstance(other, Equation) else other]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(other.equation) > 1 else other.equation[0]
+        new.equation = [new.equation, Operator.Add, other]
+        return new    
     def __radd__(self, other):
         """Add a scalar value to an equation."""
         new = Equation(existing=self)
-        new.equation = [other.equation if isinstance(other, Equation) else other,
-                        Operator.Add, new.equation]
+        if isinstance(other, Equation):
+            other = other.equation if len(other.equation) > 1 else other.equation[0]
+        new.equation = [other, Operator.Add, new.equation]
         return new
-
     def __sub__(self, other):
         """Subtract two equations."""
         new = Equation(existing=self)
-        new.equation = [new.equation, Operator.Subtract, other.equation \
-                        if isinstance(other, Equation) else other]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [new.equation, Operator.Subtract, other]
+        return new    
     def __rsub__(self, other):
         """Subtract an equation from a scalar value."""
         new = Equation(existing=self)
-        new.equation = [other.equation if isinstance(other, Equation) else other,
-                        Operator.Subtract, new.equation]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [other, Operator.Subtract, new.equation]
+        return new    
     def __mul__(self, other):
         """Multiply two equations."""
         new = Equation(existing=self)
-        new.equation = [new.equation, Operator.Multiply, other.equation \
-                        if isinstance(other, Equation) else other]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [new.equation, Operator.Multiply, other]
+        return new    
     def __rmul__(self, other):
         """Multiply a scalar value by an equation."""
         new = Equation(existing=self)
-        new.equation = [other.equation if isinstance(other, Equation) else other,
-                        Operator.Multiply, new.equation]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [other, Operator.Multiply, new.equation]
+        return new    
     def __truediv__(self, other):
         """Divide two equations."""
         new = Equation(existing=self)
-        new.equation = [new.equation, Operator.Divide, other.equation \
-                        if isinstance(other, Equation) else other]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [new.equation, Operator.Divide, other]
+        return new    
     def __rtruediv__(self, other):
         """Divide a scalar value by an equation."""
         new = Equation(existing=self)
-        new.equation = [other.equation if isinstance(other, Equation) else other,
-                        Operator.Divide, new.equation]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [other, Operator.Divide, new.equation]
+        return new    
     def __pow__(self, other):
         """Raise an equation to a power."""
         new = Equation(existing=self)
-        new.equation = [new.equation, Operator.Power, other.equation \
-                        if isinstance(other, Equation) else other]
-        return new
-    
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [new.equation, Operator.Power, other]
+        return new    
     def __rpow__(self, other):
         """Raise a scalar value to the power of an equation."""
         new = Equation(existing=self)
-        new.equation = [other.equation if isinstance(other, Equation) else other,
-                        Operator.Power, new.equation]
+        if isinstance(other, Equation):
+            other = other.equation if len(
+                other.equation) > 1 else other.equation[0]
+        new.equation = [other, Operator.Power, new.equation]
         return new
-
     def __repr__(self):
         """Return the equation string."""
         return Equation.eq_list_to_str(self.equation)
-
     def __str__(self):
         """Return the equation string."""
         return Equation.eq_list_to_str(self.equation)

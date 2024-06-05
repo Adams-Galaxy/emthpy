@@ -28,3 +28,8 @@ class UnkownOperatorError(Exception):
     """Exception raised for unknown operators."""
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
+
+class InvalidEquationError(Exception):
+    """Exception raised for invalid equations."""
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)

@@ -4,9 +4,9 @@ import _emthpy_exceptions as ex
 class Vector(np.ndarray):
     """Class for working with vectors and utilizing vector operations"""
 
-    def __new__(cls, *args, dtype=float, **kwargs):
+    def __new__(cls, *args, **kwargs):
         if len(args) > 1:
-            return np.asarray(args, **kwargs, dtype=dtype).view(cls)
+            return np.asarray(args, **kwargs).view(cls)
         elif not isinstance(args[0], (list, tuple, np.ndarray)):
             if isinstance(args[0], (int, float)):
                 raise ValueError("vector must be a minimum of 2-space")
@@ -14,7 +14,7 @@ class Vector(np.ndarray):
                 f"expected array-like object not {type(args[0]).__name__}")
         elif len(args[0]) < 2:
             raise ValueError("vector must be a minimum of 2-space")
-        return np.asarray(*args, **kwargs, dtype=dtype).view(cls)
+        return np.asarray(*args, **kwargs).view(cls)
 
     def __array_finalize__(self, obj):
         if obj is None:
