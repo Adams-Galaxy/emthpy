@@ -1,31 +1,16 @@
-import _command_line as cl
-from _emthpy_equations import CONSTANTS, Equation
+from _command_line import CommandSet, numeric
+from _emthpy_functions import CONSTANTS, Function
 from _emthpy_matrices import Matrix
 from _emthpy_vectors import Vector
 
-def numeric(x):
-    """
-    Convert a value to a numeric type.
+EVAL_CHAR = '|'
+RANGE_EVAL_CHAR = '->'
 
-    Args:
-        x: The value to convert.
+def format_numeric(x, global_vars):
+    if isinstance(x, float):
+        return f"{x:.{global_vars['*percision']}f}"
+    return x
 
-    Returns:
-        The converted numeric value.
-    """
-    if isinstance(x, (int, float)):
-        return x
-    if isinstance(x, (tuple, list)):
-        result = list(x)
-        for i, item in enumerate(result):
-            if isinstance(item, str):
-                result[i] = float(item) if '.' in item else int(item)
-        return tuple(result)
-    if x in CONSTANTS:
-        return CONSTANTS[x]
-    if not x.replace('.','').isnumeric():
-        return x
-    return float(x) if '.' in x else int(x)
 def eval_args_from_str(string, existing_vars={}):
     if string == '':
         return (), {}
@@ -41,19 +26,25 @@ def eval_args_from_str(string, existing_vars={}):
     result = tuple(args), kwargs
     return result
 
-
-def defign_var(name, bool, *args, global_vars=..., **kwargs):
-    if isinstance(args[0], (int, float)):
+def defign_var(name, *args, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    if isinstance(args[1], (int, float)):
         global_vars['inst'].add_global_var(
-            name, args[0])
+            name, args[1])
     else:
-        value = global_vars['inst'].run_command(split_command=list(args))
-        if isinstance(value, Equation) and value.contains_any(name):
-            raise ValueError(f"Variable {name!a} is in the equation")
+        value = global_vars['inst'].run_command(split_command=list(args[1:]), **kwargs)
+        if isinstance(value, Function):
+            if value.contains_any(name):
+                raise ValueError(f"Variable {name!a} is in the equation")
+            value.name = name
         global_vars['inst'].add_global_var(name, value)
-def new_vec(*args, global_vars=..., **kwargs):
+
+def new_vec(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
     return Vector([numeric(x) for x in input().split()])
-def new_mat(*args, global_vars=..., **kwargs):
+
+def new_mat(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
     matrix = []
     inpt = input()
     while inpt != '':
@@ -65,7 +56,9 @@ def new_mat(*args, global_vars=..., **kwargs):
             if item.isnumeric():
                 row[i] = float(item) if '.' in item else int(item)
     return Matrix(matrix)
-def print_var(var_name, global_vars=..., **kwargs):
+
+def print_var(var_name, **kwargs):
+    global_vars = kwargs.get('global_vars')
     """
     Print the value of a variable.
 
@@ -76,66 +69,99 @@ def print_var(var_name, global_vars=..., **kwargs):
     Returns:
         None
     """
-    print(global_vars[var_name])
-def run_eq(eq_str, global_vars=..., **kwargs):
-    """
-    Run an equation.
+    global_vars['inst'].output(global_vars[var_name], **kwargs)
 
-    Args:
-        eq_str: The equation string.
-        kwargs: Additional keyword arguments.
+def run_expression(eq_inpt, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    log = kwargs.get('log', False)
+    log_on_eval = kwargs.get('log-on-eval', False)
 
-    Returns:
-        None
+    if isinstance(eq_inpt, (int, float)):
+        return eq_inpt
 
-    Raises:
-        ValueError: If the input is invalid.
-    """
-
-    if '|' not in eq_str:
-        eq_str, vars = eq_str, ''
-    else:   eq_str, vars = eq_str.split('|')
-
-    if eq_str in global_vars and isinstance(global_vars[eq_str], Equation):
-        eq = global_vars[eq_str]
+    if EVAL_CHAR in eq_inpt:
+        eq_inpt, vars = eq_inpt.split('|')
+        log = log_on_eval
     else:
-        eq = Equation(eq_str, **global_vars)
+        eq_inpt, vars = eq_inpt, ''
 
-    if '-' in vars:
-        a, b = vars.split('-')
+    if eq_inpt in global_vars and isinstance(global_vars[eq_inpt], Function):
+        eq = global_vars[eq_inpt]
+    else:
+        eq = Function(eq_inpt, **global_vars, **kwargs)
+        while isinstance(eq, Function) and eq.vars_satisfied():
+            eq = eq()
+
+    if RANGE_EVAL_CHAR in vars:
+        a, b = vars.split(RANGE_EVAL_CHAR)
         a, b = eval_args_from_str(a, existing_vars=global_vars), eval_args_from_str(
             b, existing_vars=global_vars)
         result = eq.evaluate_from(a, b)
-        
-        while isinstance(result, Equation) and result.vars_satisfied(**global_vars):
-            result = result.evaluate(**global_vars)
-        print(result)
-        return result
-    
-    args, new_kwargs = eval_args_from_str(vars)
-    global_vars.update(new_kwargs)
 
-    if not eq.vars_satisfied(*args, **new_kwargs):
-        print(eq)
-        return eq
+        while isinstance(result, Function) and result.vars_satisfied(**global_vars):
+            result = result.evaluate(**global_vars)
+        
+        if log:
+            global_vars['inst'].output(result, **kwargs)
+        return result
+
+    var_args, var_kwargs = eval_args_from_str(vars)
+    var_kwargs.update(global_vars)
+
+    while isinstance(eq, Function) and eq.vars_satisfied(*var_args, **var_kwargs):
+        eq = eq.evaluate(*var_args, **var_kwargs)
     
-    result = eq.evaluate(*args, **global_vars)
-    while isinstance(result, Equation) and result.vars_satisfied(**global_vars):
-        result = result.evaluate(**global_vars)
-    print(result)
-    return result
-def inverse_mat(*args, global_vars=..., **kwargs):
+    if log:
+        global_vars['inst'].output(eq, **kwargs)
+    return eq
+
+def inverse_mat(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
     if len(args) > 0 and args[0] in global_vars:
         result = global_vars[args[0]].copy()
     else:
         result = new_mat()
 
     if result.inverse():
-        print(result)
+        global_vars['inst'].output(result, **kwargs)
         return result
-    print("Matrix is not invertible")
+    global_vars['inst'].output("Matrix is not invertible", **kwargs)
     return None
-def quit(global_vars=..., **kwargs):
+
+def transpose_mat(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    if len(args) > 0 and args[0] in global_vars:
+        result = global_vars[args[0]]
+    else:
+        result = new_mat()
+
+    result = result.T
+    global_vars['inst'].output(result, **kwargs)
+    return result
+
+def normalize_vec(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    if len(args) > 0 and args[0] in global_vars:
+        result = global_vars[args[0]]
+    else:
+        result = new_vec()
+
+    result = result.normalised()
+    global_vars['inst'].output(result, **kwargs)
+    return result
+
+def magnitude_vec(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    if len(args) > 0 and args[0] in global_vars:
+        result = global_vars[args[0]]
+    else:
+        result = new_vec()
+
+    result = result.magnitude
+    global_vars['inst'].output(result, **kwargs)
+    return result
+
+def quit(**kwargs):
     """
     Quit the program.
 
@@ -146,7 +172,8 @@ def quit(global_vars=..., **kwargs):
         None
     """
     exit()
-def trap(subject, start, stop, n=-1, a=10, *args, global_vars=..., **kwargs):
+
+def trap(subject, start, stop, n=-1, a=10, *args, **kwargs):
     """
     Calculate the trapezoidal integral of a subject.
 
@@ -158,16 +185,18 @@ def trap(subject, start, stop, n=-1, a=10, *args, global_vars=..., **kwargs):
     Returns:
         None
     """
-    #print(subject, kwargs)
+    global_vars = kwargs.get('global_vars')
+    # global_vars['inst'].output(subject, kwargs)
     if subject in global_vars:
         result = global_vars[subject].trap_intergral(start, stop, n, a)
-        print(f"{result:.{global_vars['*percision']}f} u^2")
+        global_vars['inst'].output(result, "u^2", **kwargs)
         return result
-    subject = Equation(subject)
+    subject = Function(subject)
     result = subject.trap_intergral(start, stop, n, a)
-    print(f"{result:.{global_vars['*percision']}f} u^2")
+    global_vars['inst'].output(result, "u^2", **kwargs)
     return result
-def simps(subject, start, stop, n=-1, a=10, *args, global_vars=..., **kwargs):
+
+def simps(subject, start, stop, n=-1, a=10, *args, **kwargs):
     """
     Calculate the Simpson's rule integral of a subject.
 
@@ -187,35 +216,88 @@ def simps(subject, start, stop, n=-1, a=10, *args, global_vars=..., **kwargs):
     Raises:
         ValueError: If the input is invalid.
     """
+    global_vars = kwargs.get('global_vars')
     if subject in global_vars:
         result = global_vars[subject].simps_intergral(start, stop, n, a)
-        print(f"{result:.{global_vars['*percision']}f} u^2")
+        global_vars['inst'].output(
+            result, "u^2", **kwargs)
         return result
-    subject = Equation(subject)
+    subject = Function(subject)
     result = subject.simps_intergral(start, stop, n, a)
-    print(f"{result:.{global_vars['*percision']}f} u^2")
+    global_vars['inst'].output(result, "u^2", **kwargs)
     return result
-def print_vars(*args, global_vars=..., **kwargs):
+
+def limit(x, *args, **kwargs):
+    """
+    Calculate the limit of a subject.
+
+    Args:
+        subject: The subject to calculate the limit of.
+        x: The variable to calculate the limit for.
+        a: The value of the variable.
+        args: Additional arguments.
+        global_vars: Global variables dictionary.
+        kwargs: Additional keyword arguments.
+
+    Returns:
+        The result of the limit.
+
+    Raises:
+        ValueError: If the input is invalid.
+    """
+    global_vars = kwargs.get('global_vars')
+    subject = global_vars['inst'].run_command(split_command=list(args), **kwargs)
+    if isinstance(subject, (int, float)):
+        global_vars['inst'].output(subject, **kwargs)
+        return subject
+    x = numeric(x.split('->')[1])
+    if subject in global_vars:
+        result = global_vars[subject].limit(x)
+        global_vars['inst'].output(result, **kwargs)
+        return result
+    if isinstance(subject, Function):
+        result = subject.limit(x)
+        global_vars['inst'].output(result, **kwargs)
+        return result
+    raise ValueError(f"Invalid input: {subject}")
+
+def print_vars(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
     for key, value in global_vars.items():
-        print(f"{key}: {value}")
-def print_args(*args, global_vars=..., **kwargs):
-    print(args, kwargs)
+        global_vars['inst'].output(f"{key}: {repr(value)}", **kwargs)
+
+def print_args(*args, **kwargs):
+    global_vars = kwargs.get('global_vars')
+    global_vars['inst'].output(args, kwargs, **kwargs)
+
+
 
 mat = {
     'inverse': inverse_mat,
+    'transpose': transpose_mat,
 }
-vec = {
 
+vec = {
+    'normalise': normalize_vec,
+    'magnitude': magnitude_vec,
 }
+
 eq = {
 
 }
+
 new = {
     'vec': new_vec,
     'mat': new_mat,
 }
+
+default = {
+    '__global-var__': print_var,
+    '__any__': (run_expression, {'log-on-eval': True}),
+    }
+
 main = {
-    'print' : print_var,
+    'print': print_var,
     'vars': print_vars,
     'args': print_args,
     'mat': mat,
@@ -223,17 +305,23 @@ main = {
     'eq': eq,
     'new': new,
     'trap': trap,
-    'run': run_eq,
+    'simps': simps,
+    'limit': limit,
+    'lim': limit,
+    'run': run_expression,
     'quit': quit,
     'q': quit,
     '__assingment__': defign_var,
-    '__any__': run_eq,
+    '__any__': default,
 }
+
 config = {
     '*percision': 2,
 }
 
-cmd = cl.CommandSet(main, pre_prompt="emthpy-console: ", **config)
+cmd = CommandSet(main, pre_prompt="emthpy-console: ", **config)
+
+
 def run_command_line(debug=False):
     while True:
         try:
@@ -241,7 +329,8 @@ def run_command_line(debug=False):
         except Exception as ex:
             if debug:
                 raise ex
-            print("Invalid syntax, error: ", ex)
+            cmd.output("Invalid syntax, error: " + str(ex))
+
 
 if __name__ == '__main__':
-    run_command_line()
+    run_command_line(True)

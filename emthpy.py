@@ -1,4 +1,4 @@
-import _emthpy_equations as eq
+import _emthpy_functions as func
 import _emthpy_vectors as vec
 import _emthpy_matrices as mat
 import _emthpy_utils as utils
@@ -16,10 +16,10 @@ def vector(*args, **kwargs):
 
 def function(*args, **kwargs):
     """Return an equation object"""
-    return eq.Equation(*args, **kwargs)
+    return func.Function(*args, **kwargs)
 
 def fraction(a, b, *args, **kwargs):
     """Return a fraction object"""
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
         return utils.FFraction(a, b)
-    return utils.Fraction(a, b, *args, **kwargs)
+    return utils.Rational(a, b, *args, **kwargs)

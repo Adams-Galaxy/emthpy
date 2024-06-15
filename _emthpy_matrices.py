@@ -3,7 +3,7 @@ from _emthpy_utils import sign
 from _emthpy_vectors import Vector
 import _emthpy_exceptions as ex
 import _emthpy_utils as utils
-import _emthpy_equations as eq
+import _emthpy_functions as func
 
 class Matrix(np.ndarray):
     """Class for working with matrices and utilizing matrix operations"""
@@ -86,7 +86,7 @@ class Matrix(np.ndarray):
     def evaluate(self, *args, **kwargs):
         """Evaluate the matrix"""
         for i, point in enumerate(self):
-            if isinstance(self[point], (eq.Equation, utils.Fraction)):
+            if isinstance(self[point], (func.Function, utils.Rational)):
                 self[point] = self[point].evaluate(*args, **kwargs)
 
     def evaluated(self, *args, **kwargs):

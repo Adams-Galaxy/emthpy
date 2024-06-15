@@ -1,5 +1,6 @@
 import numpy as np
 import _emthpy_exceptions as ex
+from math import sqrt
 
 class Vector(np.ndarray):
     """Class for working with vectors and utilizing vector operations"""
@@ -23,7 +24,7 @@ class Vector(np.ndarray):
     @property
     def magnitude(self):
         """Return the magnitude of the vector"""
-        return np.sqrt(np.sum(self))
+        return sqrt(np.sum(self**2))
 
     @property
     def r_space(self):
@@ -88,8 +89,7 @@ class Vector(np.ndarray):
 
     def normalised(self):
         """Return a normalized copy of the vector"""
-        result = Vector(self)
-        result.normalise()
+        result = self / self.magnitude
         return result
 
     @classmethod

@@ -88,7 +88,7 @@ class FFraction:
         """Return the string representation of the fraction"""
         return f"({self.numerator}/{self.denominator})" if self.evaluate() != 0 else "0"
 
-class Fraction:
+class Rational:
     """Class for working with fractions"""
 
     def __init__(self, numerator, denominator) -> None:
