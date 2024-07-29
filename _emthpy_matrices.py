@@ -1,10 +1,8 @@
 """Module for working with matrices and utilizing matrix operations"""
 
 import numpy as np
-from _emthpy_utils import sign
 from _emthpy_vectors import Vector
 import _emthpy_exceptions as ex
-import _emthpy_utils as utils
 import _emthpy_functions_DEPRICATED as func
 
 class Matrix(np.ndarray):
@@ -173,7 +171,7 @@ class Matrix(np.ndarray):
             The evaluation is performed in-place.
         """
         for i, point in enumerate(self):
-            if isinstance(self[point], (func.Function, utils.Rational)):
+            if isinstance(self[point], func.Function): # Evaluate functions TODO: Add support for rationals
                 self[point] = self[point].evaluate(*args, **kwargs)
     def evaluated(self, *args, **kwargs):
         """

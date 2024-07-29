@@ -1,8 +1,7 @@
-import _emthpy_functions_DEPRICATED as func
-import _emthpy_function
+import _emthpy_function as func
 import _emthpy_vectors as vec
 import _emthpy_matrices as mat
-import _emthpy_utils as utils
+import _emthpy_rationals as rat
 from _emthpy_command_line import run_command_line
 
 """Contains data structures for Engineering Mathematics"""
@@ -21,6 +20,4 @@ def function(*args, **kwargs):
 
 def fraction(a, b, *args, **kwargs):
     """Return a fraction object"""
-    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-        return utils.FFraction(a, b)
-    return utils.Rational(a, b, *args, **kwargs)
+    return rat.Rational(a, b, *args, **kwargs)

@@ -292,9 +292,13 @@ class Function:
             in a flexible and extensible manner.
 
             TODO:
-                - Add support for function operations e.g h(x) = 2*f(x)-2.
+                - Add rational resultant support e.g f(x) = 1/x, f(3) = 1/3 not 0.33... .
+                - Add support for more complex expressions.
+                - Add other initialization methods.
+                - Implement validation logic.
+                - Add the ability to simplify expressions.
             """
-    
+
 
     def __init__(self, expression, name='f'):
         """Initialize a Function object.
@@ -651,7 +655,7 @@ class Function:
             output.append(stack.pop())
 
         return output
-    
+
     @staticmethod
     def _evaluate_postfix(expression):
         """
@@ -670,13 +674,13 @@ class Function:
         stack = []  # Stack to store operands
 
         for token in expression:
-            if isinstance(token, (int, float)):
+            if isinstance(token, (int, float, Function)):
                 stack.append(token)
             elif token in FUNCTIONS:
                 operand = stack.pop()
                 result = OPERATIONS[token](operand)
                 stack.append(result)
-            elif token in Operator:
+            elif isinstance(token, Operator):
                 operand2 = stack.pop()
                 operand1 = stack.pop()
                 result = OPERATIONS[token](operand1, operand2)
@@ -723,3 +727,13 @@ class Function:
 
     def __rtruediv__(self, other):
         return self.__truediv__(other)
+
+    def __pow__(self, other):
+        if isinstance(other, (int, float)):
+            new_expression = f"({self.expression}) ^ {other}"
+        else:
+            new_expression = f"({self.expression}) ^ ({other.expression})"
+        return Function(new_expression)
+
+    def __rpow__(self, other):
+        return self.__pow__(other)
