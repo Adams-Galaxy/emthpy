@@ -2,7 +2,6 @@ import math
 from enum import Enum
 import numpy as np
 import _emthpy_exceptions as ex
-import sympy as sp
 
 # Define a string of numeric characters
 NUMERIC_CHARS = "0123456789."
@@ -20,6 +19,7 @@ def isvarchar(c: str) -> bool:
     return c in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def find_all(s, substring):
+    """Find all occurrences of a substring in a string."""
     return [i for i, char in enumerate(s) if s[i:i+len(substring)] == substring]
 
 
@@ -190,6 +190,7 @@ class VariableSet(dict):
             else:   self[key] = value
 
     def defined(self, var):
+        """Check if a variable is defined within the variable set."""
         if var not in self:
             return False
         return super().__getitem__(var) is not None
@@ -200,11 +201,20 @@ class VariableSet(dict):
         
 class Function:
     """Class representing a mathematical equation."""
-    def __init__(self, equation=..., *args, variable_set=..., existing=..., require_format=True, **kwargs):
+
+    def __new__(cls, equation=..., *args, variable_set=..., existing=...,
+                require_format=True, **kwargs):
         """Create an Equation object."""
+
+        if not Function.is_valid(equation):
+            raise ex.InvalidEquationError(f"Invalid equation: \"{equation}\"")
+        return super().__new__(cls)
+
+    def __init__(self, equation=..., *args, variable_set=..., existing=...,
+                 require_format=True, **kwargs):
         self.name = kwargs.get('name', 'f')
         if existing != ...:
-            self.init_from_existing(existing, *args, **kwargs)
+            self._init_from_existing(existing, *args, **kwargs)
             return
 
         # Initialize the Equation object
@@ -214,18 +224,14 @@ class Function:
             self.variable_set = VariableSet()
 
         if isinstance(equation, str):
-            self.init_from_str(equation, *args, **kwargs)
+            self._init_from_str(equation, *args, **kwargs)
         elif isinstance(equation, list):
             self.equation = equation
             if require_format:
                 self.equation = Function.format(equation)
         self.update_variables(*args, **kwargs)
 
-    def __new__(cls, *args, **kwargs):
-        """Create an Equation object."""
-        return super().__new__(cls)
-
-    def init_from_str(self, equation, *args, **kwargs):
+    def _init_from_str(self, equation, *args, **kwargs):
         """Initialize the Equation object from a string."""
         
         # Refactor the equation string to replace functions with single char identifiers
@@ -238,7 +244,7 @@ class Function:
         self.equation = Function.format(self.unformated)
 
         self.update_variables(*args, **kwargs)
-    def init_from_existing(self, equation, *args, **kwargs):
+    def _init_from_existing(self, equation, *args, **kwargs):
         """Initialize the Equation object from an existing Equation object."""
         self.equation = equation.equation[:]
         self.unformated = equation.unformated[:]
@@ -253,7 +259,7 @@ class Function:
     def from_numeric(cls, value, *args, **kwargs):
         """Create an Equation object from a numeric value."""
         return cls(existing=[value], *args, **kwargs)
-    def decomposed(self):
+    def _decomposed(self):
         """Decompose the equation into its components."""
         def decompose(equation):
             result = []
@@ -266,15 +272,23 @@ class Function:
         result = decompose(self.equation)
         return result
     def function_variables(self):
-        """Get the variables in the equation."""
+        """
+        Get the variables in the equation.
+
+        Returns:
+            tuple: A tuple containing the variables in the equation.
+        """
         vars = []
-        for item in self.decomposed():
+        for item in self._decomposed():
             if isinstance(item, str) and item \
                 not in vars and item not in CONSTANTS:
                 vars.append(item)
         return tuple(vars)
-    def remove_lone_parentheses(self):
-        """Remove lone parentheses from the equation."""
+
+    def _remove_lone_parentheses(self):
+        """
+        Remove lone parentheses from the equation.
+        """
         def remove_parentheses(equation):
             if len(equation) == 1:
                 return equation[0]
@@ -283,25 +297,62 @@ class Function:
                     equation[i] = remove_parentheses(item)
             return equation
         self.equation = remove_parentheses(self.equation)
-    def requires_format(self):
-        """Check if the equation requires formatting."""
+    def _requires_format(self):
+        """
+        Check if the equation requires formatting.
+
+        Returns:
+            bool: True if the equation requires formatting, False otherwise.
+        """
         return True in [isinstance(item, list) for item in self.equation]
     def update_variables(self, *args, **kwargs):
-        """Update the variable values."""
+        """
+        Update the variable values.
+
+        Args:
+            *args: Variable arguments.
+            **kwargs: Keyword arguments.
+        """
         self.variable_set.update_vars(*args, **kwargs)
     def evaluate(self, *args, **kwargs):
-        """Solve the equation with the given variable values."""
+        """
+        Solve the equation with the given variable values.
+
+        Args:
+            *args: Variable arguments.
+            **kwargs: Keyword arguments.
+
+        Returns:
+            float: The result of the equation evaluation.
+        """
         # Update the variables if arguments are provided
         var_set = self.variable_set.copy()
         var_set.update_vars(*args, **kwargs)
-        return Function.solve_equation(self.equation, var_set)
+        return Function._eq_evaluate(self.equation, var_set)
     def evaluate_from(self, a, b):
-        """Solve the equation with the given variable values."""
+        """
+        Solve the equation with the given variable values.
+
+        Args:
+            a: The starting variable values.
+            b: The ending variable values.
+
+        Returns:
+            float: The result of the equation evaluation.
+        """
         if isinstance(a, tuple) and isinstance(b, tuple):
             return self.evaluate(*b[0], **b[1]) - self.evaluate(*a[0], **a[1])
         return self.evaluate(b) - self.evaluate(a)
     def refactor_str_operators(self, equation: str) -> str:
-        """Replace functions in the equation string with single char identifiers."""
+        """
+        Replace functions in the equation string with single char identifiers.
+
+        Args:
+            equation (str): The equation string to be refactored.
+
+        Returns:
+            str: The refactored equation string.
+        """
         def replace_operator(operator, replacement, equation):
             prev_index = 0
             index = equation.find(replacement, prev_index)
@@ -313,14 +364,14 @@ class Function:
                         prev_index = index + 1
                         index = equation.find(replacement, prev_index)
                         continue
-                
+
                 equation = equation[:index] + \
                     operator.placeholder() + \
                     equation[index + len(replacement):]
                 prev_index = index + len(replacement) + 2
                 index = equation.find(replacement, prev_index)
             return equation
-        
+
         # Replace functions (e.g sin) with single char identifiers
         for operator, identifier in OPERATOR_KEYS.items():
             if operator is Operator.Negative:
@@ -330,7 +381,6 @@ class Function:
                     equation = replace_operator(operator, value, equation)
             else:
                 equation = replace_operator(operator, identifier, equation)
-
 
         for key, value in CONSTANTS.items():
             equation = equation.replace(key, f"!{key}!")
@@ -364,14 +414,14 @@ class Function:
                     if not isnumeric(equation[i + e]):
                         break
                     numeric_values += equation[i + e]
-                
+
                 result.append(float(numeric_values) if '.' \
                     in numeric_values else int(numeric_values))
                 pending_operator = False
-                skip_to = i + len(numeric_values)  
+                skip_to = i + len(numeric_values)
             elif isvarchar(c):
                 # Check for implied multiplication
-                if Function.is_default_multiplier(last_result):
+                if Function._is_default_multiplier(last_result):
                     if not pending_operator:
                         result.append(Operator.Multiply)
                 alpha_values = Function.find_var_in_str(equation[i:])
@@ -381,11 +431,11 @@ class Function:
                 pending_operator = False
                 skip_to = i + len(alpha_values)
             elif c == '(':
-                endpos = Function.find_end_bracket(equation, i+1)
+                endpos = Function._find_end_bracket(equation, i+1)
                 substring = equation[i+1:endpos]
                 skip_to = endpos + 1
                 # Check for implied multiplication
-                if Function.is_default_multiplier(last_result):
+                if Function._is_default_multiplier(last_result):
                         if not pending_operator:
                             result.append(Operator.Multiply)
                 result.append(self.interperate(substring))
@@ -409,7 +459,7 @@ class Function:
                 skip_to = endpos + 1
 
                 # Check for implied multiplication
-                if Function.is_default_multiplier(last_result):
+                if Function._is_default_multiplier(last_result):
                     if not pending_operator:
                         result.append(Operator.Multiply)
                 result.append(substring)
@@ -417,7 +467,18 @@ class Function:
                 raise ex.UnkownOperatorError(f"Unkown operator: \'{c}\'")
         return result
     def trap_intergral(self, a, b, n=-1, accuracy_factor=10):
-        """Trapazoidal intergral approximation."""
+        """
+        Trapazoidal intergral approximation.
+
+        Args:
+            a: The starting point of the interval.
+            b: The ending point of the interval.
+            n (int, optional): The number of subintervals. Defaults to -1.
+            accuracy_factor (int, optional): The factor to determine the number of subintervals. Defaults to 10.
+
+        Returns:
+            float: The approximate value of the integral.
+        """
         if n == -1:
             n = math.ceil((b - a) * accuracy_factor)
 
@@ -425,7 +486,18 @@ class Function:
         result = (self(a) + self(b))/2 + sum([self(a + i*h) for i in range(1, n)])
         return result * h
     def simps_intergral(self, a, b, n=-1, accuracy_factor=10):
-        """Simpson's rule intergral approximation."""
+        """
+        Simpson's rule intergral approximation.
+
+        Args:
+            a: The starting point of the interval.
+            b: The ending point of the interval.
+            n (int, optional): The number of subintervals. Defaults to -1.
+            accuracy_factor (int, optional): The factor to determine the number of subintervals. Defaults to 10.
+
+        Returns:
+            float: The approximate value of the integral.
+        """
         if n == -1:
             n = math.ceil((b - a) * accuracy_factor)
         if n % 2 != 0:
@@ -435,23 +507,29 @@ class Function:
         result = self(a) + self(b) + 4 * sum([self(a + i*h) for i in range(1, n, 2)]) + \
             2 * sum([self(a + i*h) for i in range(2, n, 2)])
         return result * h / 3
-    def limit(self, value):
-        """Limit of a function."""
-        x = sp.symbols('x')
-        return sp.limit(self(x), x, value)
-
-
     def sort_vars_by_occurance(self):
+        """
+        Sort the variables by occurrence in the equation.
+        """
         vars = []
-        for item in self.decomposed():
+        for item in self._decomposed():
             if isinstance(item, str) and item not in vars:
                 vars.append(item)
-                
+
         result = {key: self.variable_set[key] for key in vars}
         result.update(self.variable_set)
         self.variable_set.clear()
         self.variable_set.update(result)
     def contains_all(self, vars):
+        """
+        Check if the equation contains all the specified variables.
+
+        Args:
+            vars: The variables to check.
+
+        Returns:
+            bool: True if the equation contains all the variables, False otherwise.
+        """
         if isinstance(vars, str):
             return vars in self.function_variables()
         if len(vars) == 0:
@@ -462,6 +540,15 @@ class Function:
                 return False
         return True
     def contains_any(self, vars):
+        """
+        Check if the equation contains any of the specified variables.
+
+        Args:
+            vars: The variables to check.
+
+        Returns:
+            bool: True if the equation contains any of the variables, False otherwise.
+        """
         if isinstance(vars, str):
             return vars in self.function_variables()
         if len(vars) == 0:
@@ -472,6 +559,19 @@ class Function:
                 return True
         return False
     def vars_satisfied(self, *args, **kwargs):
+        """
+        Check if all the variables in the equation are satisfied.
+
+        Args:
+            *args: Variable arguments.
+            **kwargs: Keyword arguments.
+
+        Returns:
+            bool: True if all the variables are satisfied, False otherwise.
+
+        Note:
+            The function will return False if any of the variables are not defined.
+        """
         temp_var_set = self.variable_set.copy()
         temp_var_set.update_vars(*args, **kwargs)
         for var in temp_var_set.keys():
@@ -479,6 +579,13 @@ class Function:
                 return False
         return True
 
+    @staticmethod
+    def is_valid(function) -> bool:
+        """(WIP) Check if the equation string is valid."""
+        if not isinstance(function, str):
+            return False
+
+        return True
     @staticmethod
     def find_var_in_str(str):
         """Find a variable in a string."""
@@ -505,15 +612,15 @@ class Function:
             for i, item in enumerate(result):
                 if item in opp:
                     if item.ismodifier():
-                        result[i] = [item, Function.cut_next_item(result, i)]
+                        result[i] = [item, Function._cut_next_item(result, i)]
                         continue
                     if Function.previous_opperation(result, i) in opp:
-                        Function.append_prev_list(result, i,
-                            [result[i], Function.cut_next_item(result, i)])
+                        Function._append_prev_list(result, i,
+                            [result[i], Function._cut_next_item(result, i)])
                         result[i] = None
                         continue
-                    result[i] = [Function.cut_prev_item(result, i), result[i], 
-                                 Function.cut_next_item(result, i)]
+                    result[i] = [Function._cut_prev_item(result, i), result[i], 
+                                 Function._cut_next_item(result, i)]
 
         while None in result:
             result.remove(None)
@@ -531,7 +638,7 @@ class Function:
                 return Function.previous_opperation(sub[i], len(sub[i]) - 1)
         return None
     @staticmethod
-    def cut_next_item(equation: list, index):
+    def _cut_next_item(equation: list, index):
         """Cut the next item from the equation list."""
         sub = equation[index + 1:]
         for i, item in enumerate(sub):
@@ -541,11 +648,11 @@ class Function:
                 equation[index + i + 1] = None
                 return item
             equation[index + i + 1] = None
-            return [Operator.Negative, Function.cut_next_item(equation, index + i + 1)]
+            return [Operator.Negative, Function._cut_next_item(equation, index + i + 1)]
 
         print("Failed to find next item")    
     @staticmethod
-    def cut_prev_item(equation: list, index):
+    def _cut_prev_item(equation: list, index):
         """Cut the previous item from the equation list."""
         sub = equation[:index]
 
@@ -555,7 +662,7 @@ class Function:
                 return sub[i]
         print("Failed to find previous item")
     @staticmethod
-    def append_next_list(equation: list, index, obj):
+    def _append_next_list(equation: list, index, obj):
         """Append an item to the next list in the equation list."""
         sub = equation[index + 1:]
         for i in range(len(sub)):
@@ -567,7 +674,7 @@ class Function:
                 return            
         print("Failed to append next item")    
     @staticmethod
-    def append_prev_list(equation: list, index, obj):
+    def _append_prev_list(equation: list, index, obj):
         """Append an item to the previous list in the equation list."""
         sub = equation[:index]
 
@@ -580,7 +687,7 @@ class Function:
                 return
         print("Failed to append previous item")
     @staticmethod
-    def find_end_bracket(equation: str, index):
+    def _find_end_bracket(equation: str, index):
         """Find the index of the closing bracket in the equation string."""
         opened_brackets = 0
         sub = equation[index:]
@@ -594,14 +701,14 @@ class Function:
                 return index + i
         print("Failed to find end bracket")
     @staticmethod
-    def solve_equation(equation: list, variable_set, evaluate_internal=False):
+    def _eq_evaluate(equation: list, variable_set, evaluate_internal=False):
         """Solve the equation using the given variable set."""
         pending_operator = None
         
         result = 0
         for item in equation:
             if isinstance(item, list):
-                value = Function.solve_equation(item, variable_set)
+                value = Function._eq_evaluate(item, variable_set)
             elif isinstance(item, str):
                 if item in CONSTANTS:
                     value = CONSTANTS[item]
@@ -628,19 +735,19 @@ class Function:
             else:
                 result = value
         if isinstance(result, Function):
-            result.remove_lone_parentheses()
+            result._remove_lone_parentheses()
         return result
     @staticmethod
-    def is_default_multiplier(obj):
+    def _is_default_multiplier(obj):
         """Check if the object is a default multiplier."""
         return isinstance(obj, (float, int, str, list))
     @staticmethod
-    def eq_list_to_str(equation: list) -> str:
+    def _eq_list_to_str(equation: list) -> str:
         """Convert an equation list to a string."""
         result = ""
         for i in equation:
             if isinstance(i, list):
-                result += '(' + Function.eq_list_to_str(i) + ')'
+                result += '(' + Function._eq_list_to_str(i) + ')'
                 continue
             elif isinstance(i, float):
                 result += str(i)
@@ -736,10 +843,10 @@ class Function:
         return new
     def __repr__(self):
         """Return the equation string."""
-        return f"{Function.__name__}({Function.eq_list_to_str(self.equation)})"
+        return f"{Function.__name__}({Function._eq_list_to_str(self.equation)})"
     def __str__(self):
         """Return the equation string."""
         func_vars = self.function_variables()
         vars = ''.join([x + (', ' if i < len(func_vars) -1 else '') \
                         for i, x in enumerate(func_vars)])
-        return f"{self.name}({vars}) = " + Function.eq_list_to_str(self.equation)
+        return f"{self.name}({vars}) = " + Function._eq_list_to_str(self.equation)

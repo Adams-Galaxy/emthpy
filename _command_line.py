@@ -1,5 +1,7 @@
+"""WIP - Command line interface for emthpy"""
+
 from _emthpy_types import Function
-from _emthpy_functions import CONSTANTS
+from _emthpy_functions_DEPRICATED import CONSTANTS
 from sympy.core.numbers import Float as spFloat
 from sympy.core import Rational
 
@@ -8,19 +10,17 @@ OPTION_CHAR = '--'
 BOOLS = ('==', '!=', '>', '<', '>=', '<=')
 
 
-def numeric(x):
+def numeric(x, thow_error=True):
+    """Converts a string to a number if it is a number."""
     def convert(s):
         if isinstance(s, (int, float)):
             return s
-        if isinstance(s, (tuple, list)):
-            result = list(s)
-            for i, item in enumerate(result):
-                if isinstance(item, str):
-                    result[i] = float(item) if '.' in item else int(item)
-            return tuple(result)
         if s in CONSTANTS:
             return CONSTANTS[s]
-        if not s.replace('.', '').isnumeric():
+        formated = s.replace('.', '').replace('-', '')
+        if not formated.isnumeric():
+            if thow_error:
+                raise ValueError(f"Invalid number: {s}")
             return s
         return float(s) if '.' in s else int(s)
     
@@ -103,7 +103,7 @@ class CommandSet:
                 return None
             command = command.split()
             for i, item in enumerate(command):
-                command[i] = numeric(item)
+                command[i] = numeric(item, False)
         else:
             command = split_command
 

@@ -33,3 +33,8 @@ class InvalidEquationError(Exception):
     """Exception raised for invalid equations."""
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
+
+class InvalidCommandError(Exception):
+    """Exception raised for invalid commands."""
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)

@@ -1,5 +1,7 @@
+"""WIP - Command line interface for emthpy"""
+
 from _command_line import CommandSet, numeric
-from _emthpy_functions import CONSTANTS, Function
+from _emthpy_functions_DEPRICATED import CONSTANTS, Function
 from _emthpy_matrices import Matrix
 from _emthpy_vectors import Vector
 
@@ -53,8 +55,10 @@ def new_mat(*args, **kwargs):
 
     for row in matrix:
         for i, item in enumerate(row):
-            if item.isnumeric():
-                row[i] = float(item) if '.' in item else int(item)
+            num_item = numeric(item)
+            if not isinstance(num_item, (int, float)):
+                raise ValueError(f"Invalid input: {item}")
+            row[i] = num_item
     return Matrix(matrix)
 
 def print_var(var_name, **kwargs):
@@ -227,6 +231,7 @@ def simps(subject, start, stop, n=-1, a=10, *args, **kwargs):
     global_vars['inst'].output(result, "u^2", **kwargs)
     return result
 
+#WIP - Limit function is not yet implemented
 def limit(x, *args, **kwargs):
     """
     Calculate the limit of a subject.
@@ -245,6 +250,9 @@ def limit(x, *args, **kwargs):
     Raises:
         ValueError: If the input is invalid.
     """
+    print("Limit function is not yet implemented")
+    return
+
     global_vars = kwargs.get('global_vars')
     subject = global_vars['inst'].run_command(split_command=list(args), **kwargs)
     if isinstance(subject, (int, float)):
@@ -282,10 +290,6 @@ vec = {
     'magnitude': magnitude_vec,
 }
 
-eq = {
-
-}
-
 new = {
     'vec': new_vec,
     'mat': new_mat,
@@ -302,7 +306,6 @@ main = {
     'args': print_args,
     'mat': mat,
     'vec': vec,
-    'eq': eq,
     'new': new,
     'trap': trap,
     'simps': simps,

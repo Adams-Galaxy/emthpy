@@ -1,4 +1,5 @@
-import _emthpy_functions as func
+import _emthpy_functions_DEPRICATED as func
+import _emthpy_function
 import _emthpy_vectors as vec
 import _emthpy_matrices as mat
 import _emthpy_utils as utils
