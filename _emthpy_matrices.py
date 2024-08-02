@@ -1,16 +1,15 @@
 """Module for working with matrices and utilizing matrix operations"""
 
 import numpy as np
-from _emthpy_vectors import Vector
+from _emthpy_vectors import Vector, i, j, k
 import _emthpy_exceptions as ex
 import _emthpy_functions_DEPRICATED as func
+from _emthpy_rationals import Rational
 
 class Matrix(np.ndarray):
     """Class for working with matrices and utilizing matrix operations"""
 
     def __new__(cls, *args, **kwargs):
-        if "dtype" not in kwargs:
-            kwargs['dtype'] = float
         obj = np.asarray(*args, **kwargs).view(cls)
         if len(obj.shape) > 2:
             raise ex.MatrixShapeError(
@@ -41,6 +40,10 @@ class Matrix(np.ndarray):
             raise StopIteration
         return result
 
+    def __str__(self) -> str:
+        return np.array2string(self, separator=" ",
+            prefix="|", suffix="|", formatter={'all': str})
+
     @property
     def m(self):
         """Return the number of rows in the matrix"""
@@ -49,6 +52,10 @@ class Matrix(np.ndarray):
     def n(self):
         """Return the number of columns in the matrix"""
         return self.shape[1]
+    @property
+    def determinant(self):
+        """The determinant of the matrix"""
+        return Matrix.mat_determinant(self)
 
     def is_square(self):
         """
@@ -155,9 +162,9 @@ class Matrix(np.ndarray):
         Notes:
             This operation modifies the matrix in-place.
         """
-        temp = self[row_a]
-        self[row_a] = self[row_b]
-        self[row_b] = temp
+        temp = self[row_a, :].copy()
+        self[row_a, :] = self[row_b, :]
+        self[row_b, :] = temp[:]
     def evaluate(self, *args, **kwargs):
         """
         Evaluate the matrix.
@@ -224,6 +231,9 @@ class Matrix(np.ndarray):
         result = Matrix._from_existing(self)
         result.inverse()
         return result
+    def inversable(self):
+        """Check if the matrix is inversable"""
+        return self.is_square() and self.determinant != 0
     def transpose(self):
         """Transpose the matrix"""
         self[:] = self.T
@@ -252,7 +262,7 @@ class Matrix(np.ndarray):
     def reduce_to_echelon_form(self):
         """Convert the matrix to echelon form"""
         self[:] = Matrix.mat_to_echelon_form(self)[:]
-    def is_in_echelon_form(self):
+    def in_echelon_form(self):
         """Check if the matrix is in echelon form"""
         return Matrix.mat_is_in_echelon_form(self)
 
@@ -301,7 +311,7 @@ class Matrix(np.ndarray):
             raise ValueError(
                 f"Invalid shape: {shape}, both 'm' and 'n' must be equal.")
 
-        result = Matrix(np.zeros(shape))
+        result = Matrix(np.zeros(shape), dtype=int)
         for i in range(m):
             result[i, i] = 1
         return result
@@ -339,6 +349,8 @@ class Matrix(np.ndarray):
         if not Matrix.is_square(matrix):
             raise ValueError(
                 f"'matrix' must be square (nxn) to conform for inversion, not {matrix.shape}")
+        if matrix.determinant == 0:
+            return False
 
         aug_matrix = matrix.augmented_with_identity()
 
@@ -362,11 +374,61 @@ class Matrix(np.ndarray):
             pivot += 1
         inversed = aug_matrix.b_matrix # Extract the inverse matrix
 
-        # Check whether the inverse was successful
-        if inversed.is_inverse_of(matrix):
-            matrix[:] = inversed[:] # Modify the original matrix
-            return True
-        return False 
+        matrix[:] = inversed[:] # Modify the original matrix
+        return True
+    
+    @staticmethod
+    def mat_determinant(matrix):
+        """
+        Attempts to calculate the inverse of the given square matrix.
+
+        Args:
+            matrix (Matrix): The matrix to be inverted.
+
+        Returns:
+            bool: True if the inversion was successful, False otherwise.
+
+        Raises:
+            TypeError: If the input matrix is not of type Matrix.
+            ValueError: If the input matrix is not square.
+
+        The function attempts to calculate the inverse of the given square matrix by performing
+        row operations to nullify the values below and above the pivot. It checks for the presence
+        of a non-zero pivot in each column and interchanges rows if necessary. If the matrix is
+        not invertible, the function returns False. Otherwise, it normalizes the matrix pivots
+        (diagonal elements) to 1's and returns True if the inverse is successfully calculated.
+
+        Note:
+            The input matrix is modified in-place if the inverse is successfully calculated.
+        """
+        if not isinstance(matrix, Matrix):
+            raise TypeError(
+                f"'matrix' must be of type {Matrix.__name__}, not {type(matrix).__name__}")
+        if not Matrix.is_square(matrix):
+            raise ValueError(
+                f"'matrix' must be square (nxn) to conform for determination, not {matrix.shape}")
+
+        upper_triangular = matrix.copy()
+
+        # Loop through each point in the inversion sequence
+        m, n = matrix.shape
+        pivot = 0
+        for j in range(n):
+            found = False
+            for i in range(pivot, m):
+                if upper_triangular[i, j] != 0:
+                    found = True
+                    upper_triangular.interchange_rows(i, pivot)
+                    break
+            if found:
+                for i in range(pivot + 1, m):
+                    upper_triangular.add_scaled_row_to_another(
+                    pivot, i, -upper_triangular[i, j] / upper_triangular[pivot, j])
+            pivot += 1
+
+        # Calculate the determinant
+        det = np.prod([upper_triangular[i, i] for i in range(m)])
+        return det
     @staticmethod
     def mat_solve(matrix, RHS, raise_if_not_in_echelon=False):
         """Solve a matrix equation"""
@@ -405,7 +467,7 @@ class Matrix(np.ndarray):
         if isinstance(other, Matrix):
             return super().__matmul__(other)
         return super().__mul__(other)
- 
+
 
 class AugmentedMatrix(Matrix):
     """Class for working with augmented matrices"""

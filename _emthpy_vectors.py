@@ -1,6 +1,6 @@
+from math import sqrt
 import numpy as np
 import _emthpy_exceptions as ex
-from math import sqrt
 
 
 class Vector(np.ndarray):
@@ -42,6 +42,8 @@ class Vector(np.ndarray):
             ValueError: If the vector is less than 2-dimensional.
             TypeError: If the input is not an array-like object.
         """
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = float
         if len(args) > 1:
             return np.asarray(args, **kwargs).view(cls)
         elif not isinstance(args[0], (list, tuple, np.ndarray)):
@@ -187,15 +189,15 @@ class Vector(np.ndarray):
                 f"vector in {self.r_space}-space has no 'w' component")
         self[3] = value
 
-    def normalise(self):
+    def normalize(self):
         """
         Normalize the vector.
 
         This method modifies the vector in place.
         """
-        Vector.vec_normalise(self)
+        Vector.vec_normalize(self)
 
-    def normalised(self):
+    def normalized(self):
         """
         Return a normalized copy of the vector.
 
@@ -272,7 +274,7 @@ class Vector(np.ndarray):
         return cls(result)
 
     @staticmethod
-    def vec_normalise(vector):
+    def vec_normalize(vector):
         """
         Normalize the vector.
 
@@ -298,3 +300,11 @@ class Vector(np.ndarray):
             str: The string form of the vector.
         """
         return f"{tuple(self)}"
+
+
+i = Vector(1, 0, 0)
+j = Vector(0, 1, 0)
+k = Vector(0, 0, 1)
+
+zero = Vector.zero()
+one = Vector.one()

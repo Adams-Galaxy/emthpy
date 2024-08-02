@@ -79,6 +79,8 @@ This module is designed to facilitate the creation, manipulation, and evaluation
 
 from enum import Enum
 import numpy as np
+from _emthpy_types import Vector, Matrix
+from _emthpy_rationals import Rational
 
 class Operator(Enum):
     """Enumeration of mathematical operators."""
@@ -165,7 +167,7 @@ OPERATOR_ALIASES = {
     Operator.Multiply : ['*'],
     Operator.Add : ['+'],
     Operator.Subtract : ['-'],
-    Operator.Negative : ['NEG'],
+    Operator.Negative : ['-', 'NEG'],
     Operator.LeftParen : ['('],
     Operator.RightParen : [')'],
 }
@@ -191,12 +193,22 @@ PRECENDANCE = {
     Operator.Root: 3,
     Operator.Divide: 2,
     Operator.Multiply: 2,
+    Operator.Negative: 2,
     Operator.Add: 1,
     Operator.Subtract: 1,
-    Operator.Negative: 0,
 }
 
-def try_numeric(value):
+# Define a dictionary of mathematical constants
+CONSTANTS = {'e': np.e, 'pi': np.pi,
+             'inf': float('inf'), '-inf': float('-inf')}
+
+VAR_TYPES = (
+    int, float, str, Vector, Matrix
+)
+
+VALID_VAR_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
+
+def try_numeric(value, allow_expression=False, thow_error=False):
     """Converts a string to a number if it is a number.
 
     Args:
@@ -217,6 +229,10 @@ def try_numeric(value):
         return value
     formated = value.replace('.', '').replace('-', '')
     if not formated.isnumeric():
+        if allow_expression:
+            return Function(value)
+        if thow_error:
+            raise ValueError(f"Invalid number: {value}")
         return value
     return float(value) if '.' in value else int(value)
 
@@ -299,7 +315,6 @@ class Function:
                 - Add the ability to simplify expressions.
             """
 
-
     def __init__(self, expression, name='f'):
         """Initialize a Function object.
 
@@ -320,8 +335,10 @@ class Function:
         self.name = name
         if isinstance(expression, str):
             self._init_from_string(expression)
+        else:
+            raise ValueError(f"Invalid expression: {expression}, of type {type(expression).__name__}")
 
-    def __new__(cls, expression):
+    def __new__(cls, expression, name='f'):
         """Initialize a Function object.
 
         Args:
@@ -347,21 +364,7 @@ class Function:
             >>> str(Function("2x + 3"))
             '2x + 3'
         """
-        result = self._infix[:]
-
-        # Remove implied multiplication operators
-        for i, token in enumerate(result[1:-1]):
-            if token == Operator.Multiply:
-                if Function._is_implied_multiplication(result[i], result[i+2]):
-                    result[i+1] = ''
-
-        # Replace operator aliases with their respective strings
-        for i, token in enumerate(result):
-            if isinstance(token, Operator):
-                result[i] = OPERATOR_ALIASES[token][0]
-            elif isinstance(token, (int, float)):
-                result[i] = str(token)
-        return ''.join(result)
+        return Function.func_to_str(self._infix)
 
     def __repr__(self):
         """Return the string representation of the function.
@@ -395,6 +398,32 @@ class Function:
         """
         return f"{self.name}({','.join(self.variables())}) = {self}"
 
+    def infix_str(self):
+        """Return the infix string representation of the function.
+
+        Returns:
+            str: The infix string representation of the function.
+
+        Example:
+            >>> f = Function("2x+3")
+            >>> f.infix_str()
+            '2x+3'
+        """
+        return Function.func_to_str(self._infix)
+
+    def postfix_str(self):
+        """Return the postfix string representation of the function.
+
+        Returns:
+            str: The postfix string representation of the function.
+
+        Example:
+            >>> f = Function("2x+3")
+            >>> f.postfix_str()
+            '2x*3+'
+        """
+        return Function.func_to_str(self._postfix, False)
+
     def __call__(self, *vars, **kwvars):
         """Evaluate the function with given variables.
 
@@ -424,6 +453,7 @@ class Function:
             [2, 'x', Operator.Add, 3]
         """
         self._infix = Function._string_to_infix(expression)
+        Function._remove_lone_perenthisies(self._infix)
         self._postfix = Function._infix_to_postfix(self._infix)
 
     def evaluate(self, *vars, **kwvars):
@@ -444,6 +474,7 @@ class Function:
             >>> f.evaluate(2)
             7
         """
+        kwvars.update(CONSTANTS)
         substitutions = self._postfix[:]
         loose_vars = list(vars)
         loose_vars.reverse()
@@ -452,9 +483,13 @@ class Function:
             if not isinstance(token, str):
                 continue
             if token in kwvars:
+                if isinstance(kwvars[token], str):
+                    kwvars[token] = try_numeric(kwvars[token], allow_expression=True)
                 substitutions[i] = kwvars[token]
             elif len(loose_vars) > 0:
                 kwvars[token] = loose_vars.pop()
+                if isinstance(kwvars[token], str):
+                    kwvars[token] = try_numeric(kwvars[token], allow_expression=True)
                 substitutions[i] = kwvars[token]
             else:
                 raise ValueError(f"Missing value for variable: {token}")
@@ -476,8 +511,106 @@ class Function:
             ['x', 'y', 'z']
         """
         result = list(set(
-            [token for token in self._infix if isinstance(token, str)]))
+            [token for token in self._infix if isinstance(token, str) and 
+             token not in CONSTANTS]))
         return sorted(result)
+
+    def satisfied(self, *vars, **kwvars):
+        """
+        Check if the function is satisfied with the given variables.
+
+        This method evaluates the function with the given variables and checks if the result is a number.
+        If the result is a number, the function is considered satisfied.
+
+        Args:
+            *vars: Positional arguments for variables.
+            **kwvars: Keyword arguments for variables.
+
+        Returns:
+            bool: True if the function is satisfied, False otherwise.
+
+        Example:
+            >>> expression = Function("2x + 3")
+            >>> expression.satisfied(2)
+            True
+            >>> expression = Function("5x - 7y")
+            >>> expression.satisfied(y=3)
+            False
+        """
+
+        func_vars = self.variables()
+        quick_vars = list(reversed(vars))
+        for var in func_vars:
+            if var in kwvars:
+                print(f"{var} in kwvars")
+                continue
+            if len(quick_vars) > 0:
+                print(f"{var} in quick_vars: {quick_vars}")
+                kwvars[var] = quick_vars.pop()
+            else:
+                return False
+        return True
+
+    @staticmethod
+    def func_to_str(func, remove_defauklt_multiplication=True):
+        """
+        Convert a function to a string.
+
+        Args:
+            func (Function): The function to convert.
+
+        Returns:
+            str: The string representation of the function.
+
+        Example:
+            >>> expression = Function("2x+3")
+            >>> Function.func_to_str(expression)
+            '2x+3'
+        """
+        result = func[:]
+
+        # Remove implied multiplication operators
+        if remove_defauklt_multiplication:
+            for i, token in enumerate(result[1:-1]):
+                if token == Operator.Multiply:
+                    if Function._is_implied_multiplication(result[i], result[i+2]):
+                        result[i+1] = ''
+
+        # Replace operator aliases with their respective strings
+        for i, token in enumerate(result):
+            if isinstance(token, Operator):
+                result[i] = OPERATOR_ALIASES[token][0]
+            elif isinstance(token, (int, float)):
+                result[i] = str(token)
+        return ''.join(result)
+
+    @staticmethod
+    def _remove_lone_perenthisies(infix):
+        """
+        Remove lone parenthesis from an infix expression.
+
+        Args:
+            infix (list): The infix expression as a list of tokens.
+
+        Example:
+            >>> Function._remove_lone_perenthisies([Operator.LeftParen, 2, Operator.RightParen])
+            [2]
+
+        Notes:
+            Modifies the input list in place.
+        """
+        result = []
+        i = 0
+        while i < len(infix):
+            if infix[i] == Operator.LeftParen and i + 2 < len(infix) and \
+                infix[i + 2] == Operator.RightParen:
+                result.append(infix[i + 1])
+                i += 3
+            else:
+                result.append(infix[i])
+                i += 1
+        infix.clear()
+        infix.extend(result)
 
     @staticmethod
     def _validate_expression(expression):
@@ -543,25 +676,31 @@ class Function:
         """
         expression = expression.replace(' ', '')
         result = []
-    
+
         # Replace operator aliases with their respective enum values
         # and add '&' to the start and end of each operator (for splitting)
         for operator, aliases in OPERATOR_ALIASES.items():
             for alias in aliases:
                 expression = expression.replace(alias, f"&#{operator.value}&")
 
-        # Add '&' to the start and end of each number (for splitting)
+        # Add '&' to the start and end of each element (for splitting)
         i = 0
         while i < len(expression):
             if expression[i] == '&': # Skip operators
                 start = i
-                i += 1
+                i += 1 # Skip the first '&'
                 while i < len(expression) and expression[i] != '&':
                     i += 1
+                i += 1 # Skip the last '&'
                 result.append(expression[start:i])
-            if expression[i].isalpha(): # Wrap variables in '&'
-                result.append('&' + expression[i:i+1] + '&')
-                i += 1
+            elif expression[i] in VALID_VAR_CHARS: # Wrap variables in '&'
+                start = i
+                if i + 1 < len(expression) and expression[i + 1] == '_': # Handle subscript
+                    while i < len(expression) and expression[i] in VALID_VAR_CHARS:
+                        i += 1
+                else:
+                    i += 1
+                result.append('&' + expression[start:i] + '&')
             elif expression[i].isnumeric(): # Wrap numbers in '&'
                 start = i
                 while i < len(expression) and expression[i] in NUMERIC_CHARACTERS:
@@ -657,6 +796,40 @@ class Function:
         return output
 
     @staticmethod
+    def _postfix_to_infix(expression):
+        """
+        (WIP) Convert a postfix expression to infix notation.
+
+        Args:
+            expression (list): The postfix expression as a list of tokens.
+
+        Returns:
+            list: The infix expression as a list of tokens.
+
+        Example:
+            >>> Function._postfix_to_infix([2, 5, Operator.Multiply, 3, Operator.Add])
+            [2, 5, Operator.Multiply, 3, Operator.Add]
+
+        TODO:
+            - Properly implement bedmas
+        """
+        stack = []
+        for token in expression:
+            if isinstance(token, VAR_TYPES):
+                stack.append(token)
+            elif token == Operator.Negative:
+                operand = stack.pop()
+                stack.extend([Operator.Negative, operand])
+            elif token in FUNCTIONS:
+                operand = stack.pop()
+                stack.extend([token, Operator.LeftParen, operand, Operator.RightParen])
+            else:  # binary operators
+                operand2 = stack.pop()
+                operand1 = stack.pop()
+                stack.extend([operand1, token, operand2])
+        return stack
+
+    @staticmethod
     def _evaluate_postfix(expression):
         """
         Evaluate a postfix expression.
@@ -674,7 +847,8 @@ class Function:
         stack = []  # Stack to store operands
 
         for token in expression:
-            if isinstance(token, (int, float, Function)):
+            if isinstance(token, VAR_TYPES) or \
+                isinstance(token, Function):
                 stack.append(token)
             elif token in FUNCTIONS:
                 operand = stack.pop()
@@ -689,51 +863,101 @@ class Function:
 
 
     def __mul__(self, other):
-        if isinstance(other, (int, float)):
+        if isinstance(other, (int, float, Rational)):
             new_expression = f"({self.expression}) * {other}"
-        else:
+        elif isinstance(other, Function):
             new_expression = f"({self.expression}) * ({other.expression})"
+        else:
+            raise TypeError(
+                "Cannot multiply a function by a non-numeric value")
         return Function(new_expression)
 
     def __rmul__(self, other):
-        return self.__mul__(other)
+        if isinstance(other, (int, float, Rational)):
+            new_expression = f"{other} * ({self.expression})"
+        elif isinstance(other, Function):
+            new_expression = f"({other.expression}) * ({self.expression})"
+        else:
+            raise TypeError(
+                "Cannot multiply a function by a non-numeric value")
+        return Function(new_expression)
 
     def __add__(self, other):
-        if isinstance(other, (int, float)):
+        if isinstance(other, (int, float, Rational)):
             new_expression = f"({self.expression}) + {other}"
-        else:
+        elif isinstance(other, Function):
             new_expression = f"({self.expression}) + ({other.expression})"
+        else:
+            raise TypeError(
+                "Cannot add a function to a non-numeric value")
         return Function(new_expression)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        if isinstance(other, (int, float, Rational)):
+            new_expression = f"{other} + ({self.expression})"
+        elif isinstance(other, Function):
+            new_expression = f"({other.expression}) + ({self.expression})"
+        else:
+            raise TypeError(
+                "Cannot add a function to a non-numeric value")
+        return Function(new_expression)
 
     def __sub__(self, other):
-        if isinstance(other, (int, float)):
+        if isinstance(other, (int, float, Rational)):
             new_expression = f"({self.expression}) - {other}"
-        else:
+        elif isinstance(other, Function):
             new_expression = f"({self.expression}) - ({other.expression})"
+        else:
+            raise TypeError(
+                "Cannot subtract a non-numeric value from a function")
         return Function(new_expression)
 
     def __rsub__(self, other):
-        return self.__sub__(other)
+        if isinstance(other, (int, float, Rational)):
+            new_expression = f"{other} - ({self.expression})"
+        elif isinstance(other, Function):
+            new_expression = f"({other.expression}) - ({self.expression})"
+        else:
+            raise TypeError(
+                "Cannot subtract a function from a non-numeric value")
+        return Function(new_expression)
 
     def __truediv__(self, other):
-        if isinstance(other, (int, float)):
+        if isinstance(other, (int, float, Rational)):
             new_expression = f"({self.expression}) / {other}"
-        else:
+        elif isinstance(other, Function):
             new_expression = f"({self.expression}) / ({other.expression})"
+        else:
+            raise TypeError(
+                "Cannot divide a function by a non-numeric value")
         return Function(new_expression)
 
     def __rtruediv__(self, other):
-        return self.__truediv__(other)
+        if isinstance(other, (int, float, Rational)):
+            new_expression = f"{other} / ({self.expression})"
+        elif isinstance(other, Function):
+            new_expression = f"({other.expression}) / ({self.expression})"
+        else:
+            raise TypeError(
+                "Cannot divide a non-numeric value by a function")
+        return Function(new_expression)
 
     def __pow__(self, other):
-        if isinstance(other, (int, float)):
+        if isinstance(other, (int, float, Rational)):
             new_expression = f"({self.expression}) ^ {other}"
-        else:
+        elif isinstance(other, Function):
             new_expression = f"({self.expression}) ^ ({other.expression})"
+        else:
+            raise TypeError(
+                "Cannot raise a function to a non-numeric power")
         return Function(new_expression)
 
     def __rpow__(self, other):
-        return self.__pow__(other)
+        if isinstance(other, (int, float, Rational)):
+            new_expression = f"{other} ^ ({self.expression})"
+        elif isinstance(other, Function):
+            new_expression = f"({other.expression}) ^ ({self.expression})"
+        else:
+            raise TypeError(
+                "Cannot raise a non-numeric value to the power of a function")
+        return Function(new_expression)

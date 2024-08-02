@@ -1,16 +1,6 @@
 from _emthpy_exceptions import InvalidCommandError
+from _emthpy_function import Function, try_numeric
 
-
-def try_numeric(value, thow_error=False):
-    """Converts a string to a number if it is a number."""
-    if isinstance(value, (int, float)):
-        return value
-    formated = value.replace('.', '').replace('-', '')
-    if not formated.isnumeric():
-        if thow_error:
-            raise ValueError(f"Invalid number: {value}")
-        return value
-    return float(value) if '.' in value else int(value)
 
 class Command:
     def __init__(self, command):
@@ -39,6 +29,10 @@ class Command:
         """Returns the value of the specified parameter"""
         return self.params.get(key, default)
 
+    def set_parameter(self, key, value):
+        """Sets the value of the specified parameter"""
+        self.params[key] = value
+
     @staticmethod
     def _extract_params(command):
         """Extracts the parameters from the command key-list and returns them as a dictionary"""
@@ -46,10 +40,10 @@ class Command:
         to_remove = []
         for i, key in enumerate(command):
             if key.startswith('--'):
-                result[key] = True
+                result[key[2:]] = True
                 to_remove.append(i)
             elif key.startswith('-'):
-                result[key] = result[i + 1]
+                result[key[1:]] = try_numeric(command[i + 1])
                 to_remove.append(i)
                 to_remove.append(i + 1)
         to_remove.sort(reverse=True)
@@ -69,6 +63,9 @@ class Command:
     def __iter__(self):
         self.current_index -= 1
         return self
+    
+    def __getitem__(self, key):
+        return self.keys[key]
 
 class Console:
     def __init__(self, command_tree, name="Console", variable_keys=[]):
@@ -82,11 +79,14 @@ class Console:
             '__assingment__': lambda command, console: len(command.keys) >= command.current_index + 3 and 
             command.relative_key(1) == '=',
             '__global_var__': lambda command, console: command.active_key in console.global_vars,
+            '__config_var__': lambda command, console: command.active_key in console.config_vars,
             '__any__': lambda command, console: True,
         }
         self.variable_keys.update(variable_keys)
 
-    def run(self, command=None):
+    def run(self, command=None, **kwargs):
+        debug = kwargs.get('debug', False)
+
         if command is not None:
             return self.preform(command)
         
@@ -94,7 +94,14 @@ class Console:
         while self._running:
             str_command = input(f"{self.name}: ")
             command = Command(str_command)
-            self.preform(command)
+            try:
+                self.preform(command)
+            except InvalidCommandError as e:
+                print(e)
+            except Exception as e:
+                if debug:
+                    raise e
+                print(f"[Error]: {e}")
 
             
     def preform(self, command):
