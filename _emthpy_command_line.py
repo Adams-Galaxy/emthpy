@@ -1,5 +1,5 @@
 """WIP - Command line interface for emthpy"""
-from console import Console
+from _emthpy_console_ import Console
 from _emthpy_function import Function, try_numeric
 from _emthpy_vectors import Vector
 from _emthpy_matrices import Matrix
@@ -291,4 +291,6 @@ console.global_vars.update({
         [5, 6, 0],
         ]),
 })
-console.run()
+
+if __name__ == '__main__':
+    console.run(debug=True)
