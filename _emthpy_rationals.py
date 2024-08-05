@@ -16,14 +16,12 @@ class Rational:
 
     def evaluate(self):
         """Return the fraction's evaluation"""
-        if isinstance(self.numerator, (int, float)) and isinstance(self.denominator, (int, float)):
-            return self.numerator / self.denominator
-        else:
-            raise NotImplementedError("Cannot evaluate a fraction with non-numeric values yet")
+        result = self.numerator / self.denominator
+        return result if result // 1 != result else int(result)
 
     def floor_evaluate(self):
         """Return the floor of the fraction's evaluation"""
-        return int(self.evaluate())
+        return self.evaluate() // 1
 
     def simplify(self):
         """Simplify the fraction"""
@@ -142,6 +140,8 @@ class Rational:
         return f"Rational({self.numerator}/{self.denominator})"
     def __str__(self) -> str:
         """Return the string representation of the fraction"""
+        if not isinstance(self.numerator, (int, float)) and isinstance(self.denominator, (int, float)):
+            return f"{self.numerator}/{self.denominator}"
         if self.denominator == 1:
             return str(self.numerator)
         floored = self.floor_evaluate()

@@ -1,22 +1,39 @@
-import _emthpy_function as func
-import _emthpy_vectors as vec
-import _emthpy_matrices as mat
-import _emthpy_rationals as rat
+import numpy as np
+import _emthpy_functions as _func
+import _emthpy_vectors as _vec
+import _emthpy_matrices as _mat
+import _emthpy_rationals as _rat
+epmatrix = _mat.Matrix
+epvector = _vec.Vector
+epfunction = _func.Function
+eprational = _rat.Rational
+
+
 
 """Contains data structures for Engineering Mathematics"""
 
 def matrix(*args, **kwargs):
     """Return a matrix object"""
-    return mat.Matrix(*args, **kwargs)
+    if isinstance(args[0], np.ndarray):
+        return _mat.Matrix(*args, **kwargs)
+    
+    array = []
+    for row in args[0]:
+        array.extend(row)
+
+    # Check if the matrix contains any non-numeric values
+    if True in [not isinstance(i, (int, float)) for i in array]:
+        return _mat.DMatrix(*args, **kwargs)
+    return _mat.Matrix(*args, **kwargs)
 
 def vector(*args, **kwargs):
     """Return a vector object"""
-    return vec.Vector(*args, **kwargs)
+    return _vec.Vector(*args, **kwargs)
 
 def function(*args, **kwargs):
     """Return an equation object"""
-    return func.Function(*args, **kwargs)
+    return _func.Function(*args, **kwargs)
 
 def fraction(a, b, *args, **kwargs):
     """Return a fraction object"""
-    return rat.Rational(a, b, *args, **kwargs)
+    return _rat.Rational(a, b, *args, **kwargs)

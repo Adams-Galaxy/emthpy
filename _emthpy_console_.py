@@ -1,5 +1,5 @@
 from _emthpy_exceptions import InvalidCommandError
-from _emthpy_function import Function, try_numeric
+from _emthpy_functions import Function, try_numeric
 
 
 class Command:

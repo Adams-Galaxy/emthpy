@@ -1,6 +1,6 @@
 """This module contains the equations for the vairous applications"""
 
-from _emthpy_function import Function
+from _emthpy_functions import Function
 
 class Physics:
     """A class for physics equations"""

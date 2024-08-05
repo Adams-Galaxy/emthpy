@@ -3,13 +3,15 @@
 import numpy as np
 from _emthpy_vectors import Vector, i, j, k
 import _emthpy_exceptions as ex
-import _emthpy_functions_DEPRICATED as func
 from _emthpy_rationals import Rational
+from _emthpy_functions import Function
 
 class Matrix(np.ndarray):
     """Class for working with matrices and utilizing matrix operations"""
 
     def __new__(cls, *args, **kwargs):
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = float
         obj = np.asarray(*args, **kwargs).view(cls)
         if len(obj.shape) > 2:
             raise ex.MatrixShapeError(
@@ -18,27 +20,11 @@ class Matrix(np.ndarray):
     def __array_finalize__(self, obj):
         if obj is None:
             return
-        self._iter_vector = Vector.zero(2, dtype=int)
 
     @classmethod
     def _from_existing(cls, matrix):
         """Create a matrix from an existing matrix"""
-        return cls(matrix)
-
-    def __iter__(self):
-        self._iter_vector = Vector.zero(2, dtype=int)
-        return self
-    def __next__(self):
-        result = (self._iter_vector.y, self._iter_vector.x)
-
-        self._iter_vector.x += 1
-        if self._iter_vector.x >= self.n:
-            self._iter_vector.x = 0
-            self._iter_vector.y += 1
-            return result
-        if self._iter_vector.y >= self.m:
-            raise StopIteration
-        return result
+        return matrix.copy().view(cls)
 
     def __str__(self) -> str:
         return np.array2string(self, separator=" ",
@@ -139,6 +125,19 @@ class Matrix(np.ndarray):
             This operation modifies the matrix in-place.
         """
         self[row_b] += self[row_a] * scalar
+    def add_scale_divided_row_to_another(self, row_a, row_b, scalar):
+        """
+        Add a scaled row to another row.
+
+        Args:
+            row_a (int): The index of the row to be scaled and added.
+            row_b (int): The index of the row to add the scaled row to.
+            scalar (float): The scalar value to scale the row by.
+
+        Notes:
+            This operation modifies the matrix in-place.
+        """
+        self[row_b] += self[row_a] / scalar
     def scale_row(self, row, scalar):
         """
         Scale a row by a scalar.
@@ -151,6 +150,18 @@ class Matrix(np.ndarray):
             This operation modifies the matrix in-place.
         """
         self[row] *= scalar
+    def scale_divide_row(self, row, scalar):
+        """
+        Scale a row by the inverse of a scalar.
+
+        Args:
+            row (int): The index of the row to be scaled.
+            scalar (float): The scalar value to divide the row by.
+
+        Notes:
+            This operation modifies the matrix in-place.
+        """
+        self[row] /= scalar
     def interchange_rows(self, row_a, row_b):
         """
         Interchange two rows.
@@ -165,39 +176,6 @@ class Matrix(np.ndarray):
         temp = self[row_a, :].copy()
         self[row_a, :] = self[row_b, :]
         self[row_b, :] = temp[:]
-    def evaluate(self, *args, **kwargs):
-        """
-        Evaluate the matrix.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Notes:
-            This method evaluates any functions or rational numbers in the matrix using the given arguments.
-            The evaluation is performed in-place.
-        """
-        for i, point in enumerate(self):
-            if isinstance(self[point], func.Function): # Evaluate functions TODO: Add support for rationals
-                self[point] = self[point].evaluate(*args, **kwargs)
-    def evaluated(self, *args, **kwargs):
-        """
-        Return an evaluated copy of the matrix.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            Matrix: The evaluated copy of the matrix.
-
-        Notes:
-            This method creates a copy of the matrix and evaluates any functions or rational numbers in the copy using the given arguments.
-            The original matrix is not modified.
-        """
-        result = Matrix._from_existing(self)
-        result.evaluate(*args, **kwargs)
-        return result
     def inverse(self):
         """
         Return the inverse of the matrix.
@@ -240,6 +218,9 @@ class Matrix(np.ndarray):
     def transposed(self):
         """Return a transposed copy of the matrix"""
         return Matrix(self.T)
+    def det(self):
+        """Return the determinant of the matrix"""
+        return Matrix.mat_determinant(self)
     def solve(self, RHS, raise_if_not_in_echelon=False):
         """
         Solve a matrix equation.
@@ -371,8 +352,12 @@ class Matrix(np.ndarray):
                 for i in range(pivot - 1, -1, -1):
                     aug_matrix.add_scaled_row_to_another(
                     pivot, i, -aug_matrix[i, j] / aug_matrix[pivot, j])
+                if aug_matrix[pivot, j] != 1:
+                    aug_matrix.scale_divide_row(pivot, aug_matrix[pivot, j])
             pivot += 1
         inversed = aug_matrix.b_matrix # Extract the inverse matrix
+        if matrix.dtype == int or matrix.dtype == float:
+            inversed.evaluate() # Evaluate the inverse matrix (convert rationals to numerical values)
 
         matrix[:] = inversed[:] # Modify the original matrix
         return True
@@ -469,6 +454,172 @@ class Matrix(np.ndarray):
         return super().__mul__(other)
 
 
+
+class DMatrix(Matrix):
+    """
+    Dynamic Matrix (DMatrix) class for performing matrix operations.
+
+    This class provides a flexible and efficient way to handle matrices, 
+    supporting various matrix operations such as addition, multiplication, 
+    transposition, and more. It is designed to work seamlessly with numpy arrays.
+
+    Attributes:
+        data (np.ndarray): The underlying data of the matrix.
+        shape (tuple): The shape of the matrix (rows, columns).
+
+    Methods:
+        
+        transpose(self):
+            Return the transpose of the matrix.
+        
+        determinant(self):
+            Return the determinant of the matrix.
+        
+        inverse(self):
+            Return the inverse of the matrix.
+
+    Examples:
+        >>> m1 = DMatrix([[1, 2], [3, 4]])
+        >>> m2 = DMatrix([[5, 6], [7, 8]])
+        >>> m3 = m1 + m2
+        >>> print(m3)
+        [[ 6  8]
+         [10 12]]
+        
+        >>> m5 = m1.transpose()
+        >>> print(m5)
+        [[1 3]
+         [2 4]]
+        
+        >>> det = m1.determinant()
+        >>> print(det)
+        -2.0
+        
+        >>> inv = m1.inverse()
+        >>> print(inv)
+        [[-2.   1. ]
+         [ 1.5 -0.5]]
+
+    Notes:
+        - The class assumes that the input data is a valid 2D array-like structure.
+        - The class provides basic error handling for invalid operations.
+    """
+    
+    def __new__(cls, *args, **kwargs):
+        """
+        Create a new instance of the DMatrix class.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            DMatrix: The new instance of the DMatrix class.
+
+        Notes:
+            This method creates a new instance of the DMatrix class. It accepts any data type as input and converts it to the appropriate type for the matrix elements. If the input is a string, it checks if it represents a rational number or a function and converts it accordingly. If the input is not a rational number or a function, it is converted to a Rational number with a denominator of 1.
+
+        Raises:
+            MatrixShapeError: If the matrix shape is not valid.
+
+        """
+        if 'dtype' in kwargs:
+            obj = np.asarray(*args, **kwargs).view(cls)
+        else:
+            kwargs['dtype'] = object
+            obj = np.asarray(*args, **kwargs).view(cls)
+            for point in np.ndindex(obj.shape):
+                if isinstance(obj[point], str):
+                    split = obj[point].split('/')
+                    if len(split) == 2 and split[0].isnumeric() and split[1].isnumeric():
+                        obj[point] = Rational(int(split[0]), int(split[1]))
+                    else:
+                        obj[point] = Function(obj[point])
+                    continue
+                if not isinstance(obj[point], Rational):
+                    obj[point] = Rational(obj[point], 1)
+        if len(obj.shape) > 2:
+            raise ex.MatrixShapeError(
+                f"matrix can only be of shape (m, n), not {obj.shape}")
+        return obj
+    
+    def evaluate(self, *args, **kwargs):
+        """
+        Evaluate the matrix.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Notes:
+            This method evaluates any functions or rational numbers in the matrix using the given arguments.
+            The evaluation is performed in-place.
+
+        """
+        for point in np.ndindex(self.shape):
+            if callable(self[point]):  # Evaluate functions and rationals
+                self[point] = self[point](*args, **kwargs)
+
+    def evaluated(self, *args, **kwargs):
+        """
+        Return an evaluated copy of the matrix.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Matrix: The evaluated copy of the matrix.
+
+        Notes:
+            This method creates a copy of the matrix and evaluates any functions or rational numbers in the copy using the given arguments.
+            The original matrix is not modified.
+
+        """
+        result = self.copy().view(Matrix)
+        result.evaluate(*args, **kwargs)
+        return result
+
+    def evaluate_expressions(self, *args, **kwargs):
+        """
+        Evaluate the matrix expressions.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Notes:
+            This method evaluates any functions or expressions in the matrix using the given arguments.
+            The evaluation is performed in-place.
+
+        """
+        for point in np.ndindex(self.shape):
+            if isinstance(self[point], Function):
+                self[point] = self[point](*args, **kwargs)
+
+    def evaluated_expressions(self, *args, **kwargs):
+        """
+        Return an evaluated copy of the matrix expressions.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Matrix: The evaluated copy of the matrix expressions.
+
+        Notes:
+            This method creates a copy of the matrix and evaluates any functions or expressions in the copy using the given arguments.
+            The original matrix is not modified.
+
+        """
+        result = self.copy().view(DMatrix)
+        result.evaluate_expressions(*args, **kwargs)
+        return result
+
+    def __call__(self, *args, **kwargs):
+        return self.evaluated_expressions(*args, **kwargs)
+
 class AugmentedMatrix(Matrix):
     """Class for working with augmented matrices"""
 
@@ -496,3 +647,4 @@ class AugmentedMatrix(Matrix):
         """Returns the B component of [A | B], in this augmented matrix"""
         m, n = self.mat_b_shape
         return self[:, -n:]
+

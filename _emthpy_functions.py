@@ -79,8 +79,6 @@ This module is designed to facilitate the creation, manipulation, and evaluation
 
 from enum import Enum
 import numpy as np
-from _emthpy_types import Vector, Matrix
-from _emthpy_rationals import Rational
 
 class Operator(Enum):
     """Enumeration of mathematical operators."""
@@ -203,7 +201,7 @@ CONSTANTS = {'e': np.e, 'pi': np.pi,
              'inf': float('inf'), '-inf': float('-inf')}
 
 VAR_TYPES = (
-    int, float, str, Vector, Matrix
+    int, float, str
 )
 
 VALID_VAR_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
@@ -847,8 +845,7 @@ class Function:
         stack = []  # Stack to store operands
 
         for token in expression:
-            if isinstance(token, VAR_TYPES) or \
-                isinstance(token, Function):
+            if not isinstance(token, Operator):
                 stack.append(token)
             elif token in FUNCTIONS:
                 operand = stack.pop()
@@ -863,101 +860,75 @@ class Function:
 
 
     def __mul__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"({self.expression}) * {other}"
-        elif isinstance(other, Function):
-            new_expression = f"({self.expression}) * ({other.expression})"
         else:
-            raise TypeError(
-                "Cannot multiply a function by a non-numeric value")
+            new_expression = f"({self.expression}) * ({other})"
         return Function(new_expression)
 
     def __rmul__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"{other} * ({self.expression})"
-        elif isinstance(other, Function):
-            new_expression = f"({other.expression}) * ({self.expression})"
         else:
-            raise TypeError(
-                "Cannot multiply a function by a non-numeric value")
+            new_expression = f"({other}) * ({self.expression})"
         return Function(new_expression)
 
     def __add__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"({self.expression}) + {other}"
-        elif isinstance(other, Function):
-            new_expression = f"({self.expression}) + ({other.expression})"
         else:
-            raise TypeError(
-                "Cannot add a function to a non-numeric value")
+            new_expression = f"({self.expression}) + ({other})"
         return Function(new_expression)
 
     def __radd__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"{other} + ({self.expression})"
-        elif isinstance(other, Function):
-            new_expression = f"({other.expression}) + ({self.expression})"
         else:
-            raise TypeError(
-                "Cannot add a function to a non-numeric value")
+            new_expression = f"({other}) + ({self.expression})"
         return Function(new_expression)
 
     def __sub__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"({self.expression}) - {other}"
-        elif isinstance(other, Function):
-            new_expression = f"({self.expression}) - ({other.expression})"
         else:
-            raise TypeError(
-                "Cannot subtract a non-numeric value from a function")
+            new_expression = f"({self.expression}) - ({other})"
         return Function(new_expression)
 
     def __rsub__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"{other} - ({self.expression})"
-        elif isinstance(other, Function):
-            new_expression = f"({other.expression}) - ({self.expression})"
         else:
-            raise TypeError(
-                "Cannot subtract a function from a non-numeric value")
+            new_expression = f"({other}) - ({self.expression})"
         return Function(new_expression)
 
     def __truediv__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"({self.expression}) / {other}"
-        elif isinstance(other, Function):
-            new_expression = f"({self.expression}) / ({other.expression})"
         else:
-            raise TypeError(
-                "Cannot divide a function by a non-numeric value")
+            new_expression = f"({self.expression}) / ({other})"
         return Function(new_expression)
 
     def __rtruediv__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"{other} / ({self.expression})"
-        elif isinstance(other, Function):
-            new_expression = f"({other.expression}) / ({self.expression})"
         else:
-            raise TypeError(
-                "Cannot divide a non-numeric value by a function")
+            new_expression = f"({other}) / ({self.expression})"
         return Function(new_expression)
 
     def __pow__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"({self.expression}) ^ {other}"
-        elif isinstance(other, Function):
-            new_expression = f"({self.expression}) ^ ({other.expression})"
         else:
-            raise TypeError(
-                "Cannot raise a function to a non-numeric power")
+            new_expression = f"({self.expression}) ^ ({other})"
         return Function(new_expression)
 
     def __rpow__(self, other):
-        if isinstance(other, (int, float, Rational)):
+        if isinstance(other, (int, float)):
             new_expression = f"{other} ^ ({self.expression})"
-        elif isinstance(other, Function):
-            new_expression = f"({other.expression}) ^ ({self.expression})"
         else:
-            raise TypeError(
-                "Cannot raise a non-numeric value to the power of a function")
+            new_expression = f"({other}) ^ ({self.expression})"
+        return Function(new_expression)
+
+    def __neg__(self):
+        new_expression = f"-({self.expression})"
         return Function(new_expression)

@@ -1,6 +1,6 @@
 """WIP - Command line interface for emthpy"""
 from _emthpy_console_ import Console
-from _emthpy_function import Function, try_numeric
+from _emthpy_functions import Function, try_numeric
 from _emthpy_vectors import Vector
 from _emthpy_matrices import Matrix
 
@@ -286,9 +286,9 @@ console.global_vars.update({
         [5, 6, 0],
         ]),
     'B' : Matrix([
-        [1, 2, 3],
-        [0, 1, 4],
-        [5, 6, 0],
+        [0, 2, 4],
+        [1, 3, 7],
+        [2, 1, -5],
         ]),
 })
 
