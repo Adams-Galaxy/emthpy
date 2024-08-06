@@ -3,6 +3,7 @@ from _emthpy_console_ import Console
 from _emthpy_functions import Function, try_numeric
 from _emthpy_vectors import Vector
 from _emthpy_matrices import Matrix
+from emthpy import matrix, vector, function, fraction
 
 EVAL_CHAR = '|'
 RANGE_EVAL_CHAR = '->'
@@ -176,10 +177,23 @@ def _magnitude_vec(command, console):
     if log:
         print(result)
     return result
+def _cross_vec(command, console):
+    log = command.get_parameter('log', True)
+    command.set_parameter('log', False)
+
+    command.pop_key() # Skip the 'cross' key
+    matrix = console.preform(command)
+    if not isinstance(matrix, Matrix):
+        raise ValueError(f"Invalid input: {matrix}, expected Matrix")
+    result = Vector.vec_cross(matrix[0], matrix[1])
+    if log:
+        print(result)
+    return result
 vec = {
     'normalise': _normalize_vec,
     'normalized': _normalized_vec,
     'magnitude': _magnitude_vec,
+    'cross': _cross_vec,
 }
 
 # Logic for creating new objects
@@ -194,11 +208,8 @@ def _new_mat(command, console):
 
     for row in result:
         for i, item in enumerate(row):
-            num_item = try_numeric(item)
-            if not isinstance(num_item, (int, float)):
-                raise ValueError(f"Invalid input: {item}")
-            row[i] = num_item
-    return Matrix(result)
+            row[i] = try_numeric(item)
+    return matrix(result)
 new = {
     'vec': _new_vec,
     'mat': _new_mat,

@@ -62,9 +62,6 @@ class Rational:
     def __add__(self, other):
         """Add two fractions"""
         if not isinstance(other, Rational):
-            if not isinstance(other, (int, float)):
-                raise TypeError(
-                    "Cannot subtract a non-numeric value from a fraction")
             other = Rational(other, 1)
         result = Rational(self.numerator * other.denominator +
                             self.denominator * other.numerator,
@@ -79,9 +76,6 @@ class Rational:
     def __sub__(self, other):
         """Subtract two fractions"""
         if not isinstance(other, Rational):
-            if not isinstance(other, (int, float)):
-                raise TypeError(
-                    "Cannot subtract a non-numeric value from a fraction")
             other = Rational(other, 1)
         result = Rational(self.numerator * other.denominator -
                             self.denominator * other.numerator,
@@ -96,9 +90,6 @@ class Rational:
     def __mul__(self, other):
         """Multiply two fractions"""
         if not isinstance(other, Rational):
-            if not isinstance(other, (int, float)):
-                raise TypeError(
-                    "Cannot subtract a non-numeric value from a fraction")
             other = Rational(other, 1)
         result = Rational(self.numerator * other.numerator,
                             self.denominator * other.denominator)
@@ -112,9 +103,6 @@ class Rational:
     def __truediv__(self, other):
         """Divide two fractions"""
         if not isinstance(other, Rational):
-            if not isinstance(other, (int, float)):
-                raise TypeError(
-                    "Cannot subtract a non-numeric value from a fraction")
             other = Rational(other, 1)
         result = Rational(self.numerator * other.denominator,
                             self.denominator * other.numerator)

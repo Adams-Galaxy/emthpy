@@ -1,18 +1,11 @@
 import emthpy as ep
-from emthpy import fraction as frac
+from _emthpy_functions import Function
+func_to_str = Function.func_to_str
 
 A = ep.matrix([
     [1, 2, 3],
     [4, 5, 6],
-    [7, 8, 'a'],
-    ])
+    [7, 8, 11],
+])
 
-B = ep.matrix([
-    [0, 2, 4],
-    [1, 3, 7],
-    [2, 1, -5],
-    ])
-
-print(f"A:\n{type(A).__name__}")
-print(f"A(1):\n{A(frac(2, 3))}")
-
+print(A.inversed())

@@ -9,6 +9,8 @@ from _emthpy_functions import Function
 class Matrix(np.ndarray):
     """Class for working with matrices and utilizing matrix operations"""
 
+    MAX_PRINT_SIZE = 5
+
     def __new__(cls, *args, **kwargs):
         if 'dtype' not in kwargs:
             kwargs['dtype'] = float
@@ -26,9 +28,37 @@ class Matrix(np.ndarray):
         """Create a matrix from an existing matrix"""
         return matrix.copy().view(cls)
 
+    @staticmethod
+    def matrix_to_str(matrix, max_size=MAX_PRINT_SIZE):
+        """
+        Convert a matrix to a string.
+
+        Args:
+            matrix (np.ndarray): The matrix to convert to a string.
+            max_size (int, optional): The maximum size of the string. Defaults to Matrix.MAX_PRINT_SIZE.
+        """
+        str_matrix = np.array(matrix, dtype=str)
+        # Truncate long strings
+        if max_size > 0:
+            for point in np.ndindex(matrix.shape):
+                if len(str_matrix[point]) > Matrix.MAX_PRINT_SIZE:
+                    str_matrix[point] = str_matrix[point][:5] + '...'
+
+        # Determine the maximum width of each column
+        col_widths = [max(len(item) for item in col) for col in str_matrix.T]
+
+        # Format each row
+        rows = []
+        for row in str_matrix:
+            formatted_row = " ".join(
+                f"{item:<{col_widths[i]}}" for i, item in enumerate(row))
+            rows.append('[' + formatted_row + ']')
+
+        # Join all rows into a single string
+        return "\n".join(rows)
+
     def __str__(self) -> str:
-        return np.array2string(self, separator=" ",
-            prefix="|", suffix="|", formatter={'all': str})
+        return Matrix.matrix_to_str(self)
 
     @property
     def m(self):
@@ -247,6 +277,16 @@ class Matrix(np.ndarray):
         """Check if the matrix is in echelon form"""
         return Matrix.mat_is_in_echelon_form(self)
 
+    def copy(self):
+        """
+        Return a copy of the matrix
+        
+        Returns:
+            Matrix: A copy of the matrix.
+        """
+        return super().copy().view(type(self))
+        
+
     @staticmethod
     def mat_to_echelon_form(matrix):
         """Convert a matrix to echelon form"""
@@ -356,7 +396,7 @@ class Matrix(np.ndarray):
                     aug_matrix.scale_divide_row(pivot, aug_matrix[pivot, j])
             pivot += 1
         inversed = aug_matrix.b_matrix # Extract the inverse matrix
-        if matrix.dtype == int or matrix.dtype == float:
+        if matrix.dtype == int or matrix.dtype == float and inversed.dtype == object:
             inversed.evaluate() # Evaluate the inverse matrix (convert rationals to numerical values)
 
         matrix[:] = inversed[:] # Modify the original matrix
@@ -613,17 +653,21 @@ class DMatrix(Matrix):
             The original matrix is not modified.
 
         """
-        result = self.copy().view(DMatrix)
+        result = self.copy()
         result.evaluate_expressions(*args, **kwargs)
         return result
 
     def __call__(self, *args, **kwargs):
         return self.evaluated_expressions(*args, **kwargs)
 
+
 class AugmentedMatrix(Matrix):
     """Class for working with augmented matrices"""
 
     def __new__(cls, mat_a, mat_b, **kwargs):
+        if not mat_a.dtype in [int, float] or not mat_b.dtype in [int, float]:
+            kwargs['dtype'] = object
+
         obj = super().__new__(cls, np.hstack((mat_a, mat_b)), **kwargs)
         return obj
 
@@ -636,15 +680,18 @@ class AugmentedMatrix(Matrix):
         self.mat_a_shape = mat_a.shape
         self.mat_b_shape = mat_b.shape
 
+        self.mat_a_type = type(mat_a)
+        self.mat_b_type = type(mat_b)
+
     @property
     def a_matrix(self):
         """Returns the A component of [A | B], in this augmented matrix"""
         m, n = self.mat_a_shape
-        return self[:, :n]
+        return self[:, :n].view(self.mat_a_type)
 
     @property
     def b_matrix(self):
         """Returns the B component of [A | B], in this augmented matrix"""
         m, n = self.mat_b_shape
-        return self[:, -n:]
+        return self[:, -n:].view(self.mat_b_type)
 

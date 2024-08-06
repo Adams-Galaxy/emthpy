@@ -207,6 +207,18 @@ class Vector(np.ndarray):
         result = self / self.magnitude
         return result
 
+    def projected_onto(self, other):
+        """
+        Return the projection of the vector onto another vector.
+
+        Args:
+            other (Vector): The vector to project onto.
+
+        Returns:
+            Vector: The projection of the vector onto another vector.
+        """
+        return Vector.vec_projection(self, other)
+
     @classmethod
     def zero(cls, r_space=3, **kwargs):
         """
@@ -250,8 +262,8 @@ class Vector(np.ndarray):
         """
         return cls(np.full((r_space), value), **kwargs)
 
-    @classmethod
-    def vec_cross(cls, a, b):
+    @staticmethod
+    def vec_cross(a, b, **kwargs):
         """
         Return the cross product of two vectors.
 
@@ -265,13 +277,21 @@ class Vector(np.ndarray):
         Raises:
             ValueError: If either vector is not in 3-space.
         """
-        if a.shape != (3,) or b.shape != (3,):
-            raise ValueError("Cannot cross non-3-space vectors")
+        return np.cross(a, b, **kwargs).view(Vector)
 
-        # Perform the cross product
-        result = (a.y * b.z - a.z * b.y, -
-                  (a.x * b.z - a.z * b.x), a.x * b.y - a.y * b.x)
-        return cls(result)
+    @staticmethod
+    def vec_projection(a, b, **kwargs):
+        """
+        Return the projection of vector a onto vector b.
+
+        Args:
+            a (Vector): The vector to project.
+            b (Vector): The vector to project onto.
+
+        Returns:
+            Vector: The projection of vector a onto vector b.
+        """
+        return (a @ b) / (b @ b) * b
 
     @staticmethod
     def vec_normalize(vector):
@@ -300,6 +320,14 @@ class Vector(np.ndarray):
             str: The string form of the vector.
         """
         return f"{tuple(self)}"
+    
+    def __matmul__(self, other):
+        return np.dot(self, other)
+    
+    def __mul__(self, other):
+        if isinstance(other, Vector):
+            return self @ other
+        return super().__mul__(other)
 
 
 i = Vector(1, 0, 0)
