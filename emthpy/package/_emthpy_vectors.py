@@ -1,9 +1,10 @@
 from math import sqrt
 import numpy as np
-import _emthpy_exceptions as ex
+from . import _emthpy_exceptions as ex
+from ._emthpy_base_array import BaseArray
 
 
-class Vector(np.ndarray):
+class Vector(BaseArray):
     """
     Class for working with vectors and utilizing vector operations.
 
@@ -42,28 +43,11 @@ class Vector(np.ndarray):
             ValueError: If the vector is less than 2-dimensional.
             TypeError: If the input is not an array-like object.
         """
-        if 'dtype' not in kwargs:
-            kwargs['dtype'] = float
-        if len(args) > 1:
-            return np.asarray(args, **kwargs).view(cls)
-        elif not isinstance(args[0], (list, tuple, np.ndarray)):
-            if isinstance(args[0], (int, float)):
-                raise ValueError("vector must be a minimum of 2-space")
-            raise TypeError(
-                f"expected array-like object not {type(args[0]).__name__}")
-        elif len(args[0]) < 2:
+        obj = super().__new__(cls, *args, **kwargs)
+        
+        if obj.ndim == 0:
             raise ValueError("vector must be a minimum of 2-space")
-        return np.asarray(*args, **kwargs).view(cls)
-
-    def __array_finalize__(self, obj):
-        """
-        Finalize the array.
-
-        Args:
-            obj: The object to finalize.
-        """
-        if obj is None:
-            return
+        return obj.view(cls)
 
     @property
     def magnitude(self):
@@ -319,7 +303,7 @@ class Vector(np.ndarray):
         Returns:
             str: The string form of the vector.
         """
-        return f"{tuple(self)}"
+        return f"({', '.join(str(i) for i in self)})"
     
     def __matmul__(self, other):
         return np.dot(self, other)
@@ -330,9 +314,9 @@ class Vector(np.ndarray):
         return super().__mul__(other)
 
 
-i = Vector(1, 0, 0)
-j = Vector(0, 1, 0)
-k = Vector(0, 0, 1)
-
-zero = Vector.zero()
-one = Vector.one()
+# i = Vector(1, 0, 0)
+# j = Vector(0, 1, 0)
+# k = Vector(0, 0, 1)
+# 
+# zero = Vector.zero()
+# one = Vector.one()

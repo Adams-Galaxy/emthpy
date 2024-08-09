@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: emthpy
+Version: 0.1.0
+Summary: A sample Python package
+Author: Adam Williams
+Author-email: -
+Requires-Dist: numpy

@@ -3,7 +3,7 @@ from _emthpy_console_ import Console
 from _emthpy_functions import Function, try_numeric
 from _emthpy_vectors import Vector
 from _emthpy_matrices import Matrix
-from emthpy import matrix, vector, function, fraction
+from emthpy.emthpy import matrix, vector, function, rational
 
 EVAL_CHAR = '|'
 RANGE_EVAL_CHAR = '->'

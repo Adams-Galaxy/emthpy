@@ -79,6 +79,9 @@ This module is designed to facilitate the creation, manipulation, and evaluation
 
 from enum import Enum
 import numpy as np
+from ._emthpy_exceptions import InvalidExpressionError
+from ._emthpy_base import Evaluable
+from ._emthpy_utills import clean_numeric
 
 class Operator(Enum):
     """Enumeration of mathematical operators."""
@@ -234,7 +237,7 @@ def try_numeric(value, allow_expression=False, thow_error=False):
         return value
     return float(value) if '.' in value else int(value)
 
-class Function:
+class Function(Evaluable):
     """A class to represent a mathematical function.
     
     This class provides methods to initialize a function from a string expression, evaluate the function with given variables,
@@ -313,6 +316,22 @@ class Function:
                 - Add the ability to simplify expressions.
             """
 
+    def __new__(cls, expression, name='f'):
+        """Initialize a Function object.
+
+        Args:
+            expression (str): The mathematical expression.
+            name (str): The name of the function. Defaults to 'f'.
+
+        Example:
+            >>> f = Function("2x + 3")
+            >>> f.name
+            'f'
+        """
+        if not cls._validate_expression(expression):
+            raise InvalidExpressionError(f"Invalid expression: {expression}")
+        return super().__new__(cls)
+    
     def __init__(self, expression, name='f'):
         """Initialize a Function object.
 
@@ -335,22 +354,6 @@ class Function:
             self._init_from_string(expression)
         else:
             raise ValueError(f"Invalid expression: {expression}, of type {type(expression).__name__}")
-
-    def __new__(cls, expression, name='f'):
-        """Initialize a Function object.
-
-        Args:
-            expression (str): The mathematical expression.
-            name (str): The name of the function. Defaults to 'f'.
-
-        Example:
-            >>> f = Function("2x + 3")
-            >>> f.name
-            'f'
-        """
-        if not cls._validate_expression(expression):
-            raise ValueError(f"Invalid expression: {expression}")
-        return super().__new__(cls)
 
     def __str__(self):
         """Return the string representation of the function.
@@ -454,7 +457,7 @@ class Function:
         Function._remove_lone_perenthisies(self._infix)
         self._postfix = Function._infix_to_postfix(self._infix)
 
-    def evaluate(self, *vars, **kwvars):
+    def evaluated(self, *vars, **kwvars):
         """Evaluate the function with given variables.
 
         Args:
@@ -491,7 +494,11 @@ class Function:
                 substitutions[i] = kwvars[token]
             else:
                 raise ValueError(f"Missing value for variable: {token}")
-        return Function._evaluate_postfix(substitutions)
+        
+        result = Function._evaluate_postfix(substitutions)
+        if isinstance(result, float):
+            result = clean_numeric(result)
+        return result
 
     def variables(self):
         """
@@ -861,7 +868,7 @@ class Function:
 
     def __mul__(self, other):
         if isinstance(other, (int, float)):
-            new_expression = f"({self.expression}) * {other}"
+            new_expression = f"{other} * ({self.expression})"
         else:
             new_expression = f"({self.expression}) * ({other})"
         return Function(new_expression)
